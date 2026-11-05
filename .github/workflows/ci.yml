@@ -2,8 +2,9 @@ name: HegoSentinel CI & Sprint 7 Real Security Verification Gates
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, sprint-10-production-architecture]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -74,22 +75,27 @@ jobs:
       - name: Run Laravel 11 API (14-Module), B1 Regression & Kernel Tests (S10-01 / S10-03)
         run: npm run test:api
 
-      - name: Run PostgreSQL 16 Row-Level Security (RLS) Verification Suite (S10-02)
+      - name: Run PostgreSQL 16 Row-Level Security (RLS) & Live HTTP API E2E Suite (S10-02 / S10-04)
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: "54329"
           DB_DATABASE: hegosentinel
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres_ci_password
           DB_ADMIN_USERNAME: postgres
           DB_ADMIN_PASSWORD: postgres_ci_password
           REQUIRE_POSTGRES_RLS: "1"
-        run: npm run test:postgres-rls
+        run: |
+          npm run test:postgres-rls
+          php -d extension=pdo_pgsql -d extension=pgsql apps/api/tests/run-postgres-http-e2e-tests.php
 
-      - name: Run Unit, Integration, Security & E2E Test Suites
+      - name: Run Unit, Integration, Security, E2E & Sprint 10 Acceptance Suites
         run: |
           npm run test:unit
           npm run test:integration
           npm run test:security
           npm run test:e2e
+          node --experimental-strip-types --test ./tests/security/sprint10-acceptance-audit.test.ts
 
       - name: Execute Offline Synthetic Demo & Assert Zero Secret Leakage (SEC-007 / SEC-014)
         run: |
@@ -195,6 +201,27 @@ jobs:
           name: linux-egress-isolation-evidence
           path: reports/linux-egress-isolation-evidence.json
 
+  sprint10-docker-compose-integration:
+    name: Sprint 10 Full 8-Service Docker Compose & Disposable Worker Emergency Stop (S10-07)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22.16.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Build & Verify 8-Service Docker Compose Stack, E2E Scan & <2000ms Container Kill
+        run: bash ./scripts/linux-sprint10-compose-verify.sh
+
+      - name: Upload Sprint 10 Docker Compose Evidence Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint10-compose-evidence
+          path: reports/sprint10-compose-evidence.json
+
   secret-and-dependency-security:
     name: Secret Scanning (Gitleaks + Trivy Secret) & Dependency Security Audit
     runs-on: ubuntu-24.04
@@ -251,6 +278,7 @@ jobs:
       - docker-worker-containment
       - real-scanners-semgrep-trivy
       - real-egress-broker-isolation
+      - sprint10-docker-compose-integration
       - secret-and-dependency-security
     steps:
       - name: Checkout repository
@@ -289,3 +317,4 @@ jobs:
             reports/linux-docker-evidence.json
             reports/real-scanner-evidence.json
             reports/linux-egress-isolation-evidence.json
+            reports/sprint10-compose-evidence.json

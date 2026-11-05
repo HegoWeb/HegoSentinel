@@ -39,6 +39,9 @@ COPY --chown=65532:65532 types ./types
 COPY --chown=65532:65532 schemas ./schemas
 COPY --chown=65532:65532 packages ./packages
 COPY --chown=65532:65532 integrations ./integrations
+COPY --chown=65532:65532 scripts ./scripts
+COPY --chown=65532:65532 examples ./examples
+COPY --chown=65532:65532 apps/egress-broker ./apps/egress-broker
 COPY --chown=65532:65532 apps/worker ./apps/worker
 
 USER 65532:65532

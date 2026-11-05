@@ -39,4 +39,4 @@ RUN composer install --no-dev --no-interaction --optimize-autoloader --no-script
 USER 65532:65532
 EXPOSE 8000
 
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]

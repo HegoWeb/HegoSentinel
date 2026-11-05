@@ -42,7 +42,7 @@ services:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
-    command: ["node", "--experimental-strip-types", "apps/egress-broker/src/index.ts", "--serve"]
+    command: ["node", "--experimental-strip-types", "apps/egress-broker/src/index.ts"]
     user: "65532:65532"
     read_only: true
     tmpfs:
@@ -52,17 +52,17 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      PORT: "8090"
-      HOST: "0.0.0.0"
+      HEGOSENTINEL_BROKER_PORT: "8090"
+      HEGOSENTINEL_BROKER_HOST: "0.0.0.0"
       HEGOSENTINEL_BROKER_SECRET: ${HEGOSENTINEL_BROKER_SECRET:-hegosentinel-local-broker-secret-2026}
     networks:
       - hego_internal
       - hego_platform
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/v1/egress/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   worker-supervisor:
     build:
@@ -78,6 +78,7 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
+      HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
       HEGOSENTINEL_SUPERVISOR_HOST: "0.0.0.0"
       HEGOSENTINEL_SUPERVISOR_PORT: "8795"
       HEGOSENTINEL_SUPERVISOR_SECRET: ${HEGOSENTINEL_SUPERVISOR_SECRET:-hegosentinel-sprint10-supervisor-hmac-secret-2026}
@@ -86,14 +87,15 @@ services:
       - hego_platform
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8795/v1/supervisor/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   worker:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
+    command: ["node", "-e", "console.log('HegoSentinel Isolated Worker standby ready (uid=' + process.getuid() + ', gid=' + process.getgid() + ')'); setInterval(() => {}, 3600000)"]
     user: "65532:65532"
     read_only: true
     tmpfs:
@@ -124,17 +126,18 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      APP_ENV: production
+      APP_ENV: local
       APP_DEBUG: "false"
+      HEGOSENTINEL_DEMO_MODE: "1"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_DATABASE: hegosentinel
-      DB_USERNAME: hegosentinel_app
-      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_app_rls_pass}
+      DB_USERNAME: hegosentinel
+      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_local_dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      QUEUE_CONNECTION: redis
+      QUEUE_CONNECTION: database
       HEGOSENTINEL_WORKER_SUPERVISOR_URL: "http://worker-supervisor:8795"
       HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
     ports:
@@ -146,15 +149,15 @@ services:
       - hego_platform
     healthcheck:
       test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/api/v1/health') ? 0 : 1);"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   horizon:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    command: ["php", "artisan", "queue:work", "redis", "--queue=hegosentinel-scans,hegosentinel-rechecks,hegosentinel-notifications", "--tries=2", "--timeout=120"]
+    command: ["php", "scripts/horizon-daemon.php"]
     restart: unless-stopped
     depends_on:
       postgres:
@@ -168,14 +171,15 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      APP_ENV: production
+      APP_ENV: local
       APP_DEBUG: "false"
+      HEGOSENTINEL_DEMO_MODE: "1"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_DATABASE: hegosentinel
-      DB_USERNAME: hegosentinel_app
-      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_app_rls_pass}
+      DB_USERNAME: hegosentinel
+      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_local_dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       QUEUE_CONNECTION: redis
@@ -184,6 +188,12 @@ services:
     networks:
       - hego_data
       - hego_internal
+      - hego_platform
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(file_exists('/tmp/horizon-heartbeat.json') ? 0 : 1);"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   web:
     build:
