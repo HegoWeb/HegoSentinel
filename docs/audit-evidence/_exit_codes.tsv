@@ -1,0 +1,10 @@
+﻿01-lint	0	0.9	npm run lint
+02-typecheck	0	2.9	npm run typecheck
+03-test-unit	0	0.8	npm run test:unit
+04-test-security	0	42.1	npm run test:security
+05-test-integration	0	0.8	npm run test:integration
+06-test-e2e	0	6.5	npm run test:e2e
+07-test-api-php	0	6.3	npm run test:api
+08-test-full	0	41.5	npm test
+09-verify-gates	0	2	npm run verify:gates
+10-release-gate	0	2	npm run verify:release-gate

@@ -1,0 +1,33 @@
+﻿=== GitHub Actions Run #4 (42076698840) — ubuntu-24.04 Verification Summary ===
+Repository: https://github.com/HegoWeb/HegoSentinel (private=true)
+Commit: 1f5e177
+
+--- Job 127418688712 ---
+2026-11-05T17:39:20.9157387Z found 0 vulnerabilities
+2026-11-05T17:39:33.9815264Z [PASS] WKR-001: exit=0 stdout=WKR001_VERIFIED uid=65532 gid=65532 capEff=0000000000000000 noNewPrivs=1 netErr=ENETUNREACH
+2026-11-05T17:39:34.4115243Z [PASS] WKR-002: exit=0 stdout=WKR002_VERIFIED dockerSock=absent metadataErr=ENETUNREACH
+2026-11-05T17:39:34.9511223Z [PASS] WKR-003: exit=0 stdout=WKR003_VERIFIED rootfs=EROFS repo=EROFS scratch=WRITABLE
+2026-11-05T17:39:35.3864238Z [PASS] WKR-004: exit=0 stdout=WKR004_VERIFIED shadowErr=EACCES
+2026-11-05T17:39:35.5916441Z [PASS] WKR-005: exit=0 stdout=WKR005_VERIFIED pidsMax=64 memMax=536870912
+2026-11-05T17:39:36.1029132Z [OK] Saved Linux Docker containment evidence to /home/runner/work/HegoSentinel/HegoSentinel/reports/linux-docker-evidence.json
+
+--- Job 127418688614 ---
+2026-11-05T17:39:20.0971178Z found 0 vulnerabilities
+2026-11-05T17:39:34.2018102Z [PASS] E2E Isolated Network & Broker HTTP Verification: {"internetProbe":"ENETUNREACH","metadataProbe":"ENETUNREACH","direct_internet_bypass_blocked":true,"cloud_metadata_bypass_blocked":true,"broker_e2e_http_allow_verified":true,"broker_e2e_http_ssrf_drop_verified":true,"broker_audit_chain_valid":true}
+2026-11-05T17:39:34.2278434Z [OK] Saved Linux Egress Isolation E2E evidence to /home/runner/work/HegoSentinel/HegoSentinel/reports/linux-egress-isolation-evidence.json
+
+--- Job 127418688754 ---
+2026-11-05T17:39:20.1731979Z found 0 vulnerabilities
+2026-11-05T17:39:59.6617086Z [OK] Real Semgrep & Trivy verification succeeded: [{"stack":"laravel","semgrep_status":"executed","semgrep_tool_version":"semgrep-1.183.0","semgrep_rulepack":"/home/runner/work/HegoSentinel/HegoSentinel/examples/synthetic-targets/semgrep-rules.yml","semgrep_findings":2,"trivy_status":"executed","trivy_tool_version":"trivy-cli","trivy_db_freshness":"unknown","trivy_findings":21},{"stack":"nextjs","semgrep_status":"executed","semgrep_tool_version":"semgrep-1.183.0","semgrep_rulepack":"/home/runner/work/HegoSentinel/HegoSentinel/examples/synthetic-targets/semgrep-rules.yml","semgrep_findings":2,"trivy_status":"executed","trivy_tool_version":"trivy-cli","trivy_db_freshness":"unknown","trivy_findings":36},{"stack":"nodejs","semgrep_status":"executed","semgrep_tool_version":"semgrep-1.183.0","semgrep_rulepack":"/home/runner/work/HegoSentinel/HegoSentinel/examples/synthetic-targets/semgrep-rules.yml","semgrep_findings":2,"trivy_status":"executed","trivy_tool_version":"trivy-cli","trivy_db_freshness":"unknown","trivy_findings":4}]
+
+--- Job 127418688567 ---
+2026-11-05T17:39:20.3476539Z found 0 vulnerabilities
+2026-11-05T17:39:20.7789752Z found 0 vulnerabilities
+2026-11-05T17:39:20.7902094Z [36;1mgitleaks version[0m
+2026-11-05T17:39:23.0301106Z [90m5:39PM[0m [32mINF[0m no leaks found
+
+--- Job 127419233356 ---
+2026-11-05T17:40:17.2162248Z found 0 vulnerabilities
+2026-11-05T17:40:58.4764667Z [OK] All Security Gates Verification complete: 32 PASS, 0 SKIP (not verified), 0 FAIL
+2026-11-05T17:41:04.6885087Z [RELEASE GATE: READY] All 32 security gates achieved PASS (0 FAIL, 0 SKIP).
+

@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hegosentinel.dev/schemas/scope/v1.0.0.json",
+  "title": "HegoSentinelScopeAuthorization",
+  "description": "Versioned, strongly-typed authorization grant and scope policy for HegoSentinel scans (S0-01 / HSR-02).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "grant_id",
+    "scope_version",
+    "organization_id",
+    "project_id",
+    "project_name",
+    "stack",
+    "profile",
+    "owner",
+    "authorization_statement",
+    "written_permission_ref",
+    "emergency_contact",
+    "issued_at",
+    "expires_at",
+    "time_window",
+    "max_request_budget",
+    "allowed_methods",
+    "allowed_checks",
+    "targets"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "grant_id": {
+      "type": "string",
+      "minLength": 4
+    },
+    "scope_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "organization_id": {
+      "type": "string",
+      "minLength": 2
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 2
+    },
+    "project_name": {
+      "type": "string",
+      "minLength": 2
+    },
+    "stack": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["laravel", "nextjs", "generic-web"]
+      },
+      "minItems": 1
+    },
+    "profile": {
+      "type": "string",
+      "enum": ["local-demo", "safe-web", "source"]
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 2
+    },
+    "authorization_statement": {
+      "type": "string",
+      "minLength": 15
+    },
+    "domain_control_proof": {
+      "type": "string"
+    },
+    "written_permission_ref": {
+      "type": "string",
+      "minLength": 5
+    },
+    "emergency_contact": {
+      "type": "string",
+      "minLength": 5
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "time_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_at", "end_at"],
+      "properties": {
+        "start_at": { "type": "string", "format": "date-time" },
+        "end_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "max_request_budget": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "allowed_methods": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["GET", "HEAD"]
+      },
+      "minItems": 1
+    },
+    "allowed_checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "WEB-TLS-001",
+          "WEB-HEADER-001",
+          "WEB-COOKIE-001",
+          "WEB-REDIRECT-001",
+          "CODE-001",
+          "DEP-001"
+        ]
+      },
+      "minItems": 1
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scheme", "hostname", "port", "path_prefix"],
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "enum": ["https", "http"]
+          },
+          "hostname": {
+            "type": "string",
+            "minLength": 3
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "path_prefix": {
+            "type": "string",
+            "pattern": "^/"
+          }
+        }
+      }
+    },
+    "allowed_repositories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
+

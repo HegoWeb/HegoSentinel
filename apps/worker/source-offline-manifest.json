@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0.0",
+  "profile": "source-offline",
+  "description": "Isolated offline source/dependency scanner worker profile (G0.5). Network is permanently disabled (--network=none); HTTP/remote checks cannot run in this profile.",
+  "image": "hegosentinel-worker:0.1.0-alpha.4",
+  "user": "65532:65532",
+  "privileged": false,
+  "read_only_root_filesystem": true,
+  "no_new_privileges": true,
+  "cap_drop": ["ALL"],
+  "cap_add": [],
+  "network_mode": "none",
+  "seccomp_profile": "seccomp-profile.json",
+  "host_docker_socket_mounted": false,
+  "allow_repo_hooks_or_scripts": false,
+  "forbidden_mount_substrings": [
+    "docker.sock",
+    ".ssh",
+    ".aws",
+    ".gnupg",
+    ".kube",
+    "/etc/shadow",
+    "/var/run"
+  ],
+  "forbidden_env_keys": [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "AWS_SECRET_ACCESS_KEY",
+    "GITHUB_TOKEN",
+    "OPENAI_API_KEY",
+    "DATABASE_URL"
+  ],
+  "limits": {
+    "cpus": "1.0",
+    "memory_bytes": 536870912,
+    "pids_limit": 64,
+    "timeout_ms": 30000,
+    "sigkill_grace_ms": 2000
+  },
+  "mounts": {
+    "target_repo_container_path": "/workspace/target-repo",
+    "target_repo_options": ["ro", "nosuid", "nodev", "noexec"],
+    "scratch_tmpfs_path": "/tmp/hegosentinel-scratch",
+    "scratch_tmpfs_size_bytes": 67108864,
+    "scratch_tmpfs_options": ["rw", "nosuid", "nodev", "noexec"]
+  }
+}
+

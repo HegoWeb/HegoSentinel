@@ -1,0 +1,12 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:5 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> hegosentinel@0.1.0-alpha.4 verify:gates
+> node --experimental-strip-types ./scripts/verify-all-security-gates.ts
+
+[OK] All Security Gates Verification complete: 26 PASS, 6 SKIP (not verified), 0 FAIL

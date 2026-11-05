@@ -1,0 +1,9 @@
+{
+  "name": "@hegosentinel/egress-broker",
+  "version": "0.1.0-alpha.4",
+  "private": true,
+  "type": "module",
+  "description": "Out-of-worker Trusted Egress Broker enforcing deny-by-default network policy, short-lived SignedRemoteExecutionGrant verification, DNS/IP pinning, and kill-switch revocation (G0.6)",
+  "main": "./src/index.ts"
+}
+

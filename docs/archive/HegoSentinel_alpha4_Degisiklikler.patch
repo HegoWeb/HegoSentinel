@@ -1,0 +1,632 @@
+--- /dev/null
++++ b/AUDIT_ALPHA4_TR.md
+@@ -0,0 +1,56 @@
++# HegoSentinel alpha.4 — Bağımsız Kod Denetimi ve Geliştirme Raporu
++
++**Kaynak:** Kullanıcının 4 Kasım 2026 tarihli `(5).zip` arşivi. İncelenen sürüm: `0.1.0-alpha.3` + önceki denetim yamaları.
++
++## Başlangıç doğrulaması
++- Node.js `v22.16.0` üzerinde `npm run lint`, `npm run typecheck`, `npm test`, `npm run demo` başarıyla çalıştı.
++- Önceki sürümde test sonucu **26/26 PASS** idi; çalışan demo yalnızca çevrimdışı sentetik örnekleri kullanıyor.
++- Canlı uzak tarama, gerçek egress sandbox doğrulanmadığından kapalı. Semgrep ve Trivy adaptörleri var; üçüncü taraf binary uçtan uca çalıştırılması bu denetimde yapılmadı.
++
++## Yeni bulunan ve düzeltilen riskler
++
++### AUD-06-A / HIGH: Başka çereze dayanarak yanlış `verified_fixed`
++Eski `WEB-COOKIE-001` yalnızca aynı URL üzerinde **herhangi** bir güvenli çerez varsa `positive_validation_passed=true` yapabiliyordu. Başlangıçtaki `auth_session` kaybolup yerine `new_cookie` gelmesi eski sorunu düzeltilmiş göstermemelidir.
++
++**Düzeltme:** Tarayıcı ilgili çerez adına göre tenant/proje/rule/asset kapsamlı SHA-256 bulgu parmak izini `positive_validation_fingerprints` alanına ekliyor. Recheck yalnızca eski bulgunun aynı parmak izine ait pozitif kanıtı olduğunda `verified_fixed` üretiyor. Eski raporların bu kanıtı yoksa `no_longer_observed` kalır. Çerez değerleri bu alanda tutulmuyor.
++
++### AUD-06-B / MEDIUM: Geçersiz `SameSite` kabulü
++Eski ayrıştırıcı `SameSite=Unknown` gibi ifadeleri gerçek tarayıcı tarafından uygulanabilir politikaymış gibi kabul ediyordu.
++
++**Düzeltme:** Sadece `Lax`, `Strict`, `None` geçerli sayılıyor; eksik veya geçersiz değer gözlem olarak kalıyor.
++
++### AUD-06-C / HIGH: CSP'de eksik semantik denetim
++`default-src *; default-src 'self'` gibi birleştirilmiş tekrarlar veya `default-src 'self'; script-src-elem *` gibi kurallar, bir tarayıcıdaki gerçek etkin politikayı yanlış yorumlatabiliyordu.
++
++**Düzeltme:** Tekrarlanan direktifler ve virgülle birleştirilmiş çoklu politikalar pozitif kanıt sayılmıyor. `script-src-elem` aşırı genişse de otomatik `verified_fixed` engelleniyor. Bu hâlâ tam bir W3C CSP doğrulayıcısı değildir.
++
++## Yapılan kod değişiklikleri
++- `packages/scanner-core/src/index.ts`: CSP ve SameSite, kimliğe bağlı çerez kanıtı.
++- `packages/recheck-engine/src/index.ts`: cookie-fingerprint bazlı pozitif doğrulama.
++- `packages/findings-schema/src/index.ts`, `schemas/report.schema.json`: yeni isteğe bağlı kanıt alanı ve çapraz alan kontrolü.
++- `tests/security/cookie-csp-identity-regression.test.ts`: 6 yeni sınama (4 tanesi eski sürümde başarısız olacak şekilde yeniden üretildi).
++- `package.json`, `package-lock.json`, `README*`, `CHANGELOG.md`, `docs/ROADMAP.md`: sürüm ve kapsam belgeleri güncellendi.
++
++## Test sonucu
++- Başlangıç: **26/26 PASS**.
++- Düzeltilmeden önce altı yeni testin **4'ü FAIL** idi.
++- Düzeltmeden sonra: **32/32 PASS**; lint, gerçek `tsc` typecheck ve çevrimdışı demo başarılı.
++
++## Kalan işler (öncelik)
++1. **P0:** İzole, egress firewall doğrulanmış worker. Gerçek hedef erişimini açmadan ağ düzeyi testleri ve yetki bağlamı doğrulanmalı.
++2. **P0:** Tarayıcı adaptörleri için salt-okunur konteyner ve gerçek dosya-sistemi izolasyonu. Yol doğrulaması tek başına sandbox değildir.
++3. **P1:** Semgrep/Trivy kurulu binary ve kural/veri tabanı sürümüyle entegrasyon testleri.
++4. **P1:** CSP semantiğini ve pozitif düzeltme iddialarını tarayıcı farklarına göre ayrıca inceleme, false-positive senaryoları.
++5. **P2:** Laravel API, PostgreSQL multi-tenant, Next.js panel, rapor teslimi ve onaylı bildirimler.
++6. **P3:** İnsan onaylı staging DAST, ZAP ve yetkilendirme matrisleri.
++
++**Not:** Alpha.4, önceki ZIP'e uygulanan yerel bir geliştirme/sürüm tanımıdır; production-ready veya tam sızma testi ürünü değildir.
++
++## Dağıtım doğrulaması ve sınırlamalar
++- `package-lock.json`, monorepo workspace tanımları ile yeniden eşitlendi. Eski dosya temiz `npm ci` sırasında eksik workspace girdileri veriyordu.
++- Kaynak ZIP ayrı bir dizine çıkarıldı; `npm install --package-lock-only --offline` başarılı. Çıkarılan kaynakta 32 test, çevrimdışı demo ve mevcut kurulu TypeScript derleyicisi kullanılarak `tsc --noEmit` başarılı.
++- **Sınır:** Bu çalışma ortamında TypeScript 5.9.3 tarball'ı npm önbelleğinde bulunmadığından tamamen temiz `npm ci --offline` kurulumu doğrulanamadı. İnternet erişimli makinede `npm ci --ignore-scripts` ayrıca çalıştırılmalı.
++- `.patch` dosyası orijinal kullanıcı ZIP'ine karşı `git apply --check` ile doğrulandı.
++- `node_modules`, üretilmiş raporlar ve müşteri verileri dağıtım ZIP'ine dahil edilmedi.
++
++**Takip edilecek diğer konu:** Yerel Workbench sunucusundaki POST gövdesi okuma boyutu, Host/Origin kontrolleri ve CSP `unsafe-inline` kullanımı ayrıca incelenmeli; bu değişikliklerin bu sürümde çözüldüğü iddia edilmez.
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -3,6 +3,14 @@
+ All notable changes to **HegoSentinel** are documented in this file.
+ 
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
++
++## [0.1.0-alpha.4] — Evidence correctness hardening (2026-11-04)
++
++- **AUD-06-A**: Per-cookie fingerprint evidence in coverage and re-test, preventing a different cookie on the same endpoint from proving a verified fix.
++- **AUD-06-B**: Validate `SameSite` values (`Lax`/`Strict`/`None`) instead of accepting any nonempty string.
++- **AUD-06-C**: Reject duplicate CSP directives and ambiguous comma-separated policies; refuse positive validation for permissive `script-src-elem` overrides.
++- Optional backward-compatible `positive_validation_fingerprints` coverage metadata, with JSON schema and cross-field checks.
++- Six new failing-first regression tests added and fixed; local 32/32 tests, lint, TypeScript, and offline demo passed. Remote transport and deployed worker sandbox remain intentionally unavailable.
+ 
+ ## [Unreleased] — Independent audit hotfix working tree (2026-11-04)
+ 
+--- /dev/null
++++ b/NEXT_IMPLEMENTATION_BRIEF.md
+@@ -0,0 +1,32 @@
++# HegoSentinel — Next engineering sprint (after alpha.4)
++
++**Goal:** Verified isolated scanner runner, without enabling unrestricted remote scans.
++
++## Rules
++- Treat README/ROADMAP alpha.4 code as the starting point; never rewrite the architecture from scratch.
++- `restricted-remote` stays disabled until a real OS/container egress firewall is built, independently tested and an authorization scope is active.
++- Implement security-sensitive work against deliberately controlled staging/fixtures, not third-party targets.
++- Private customer source code is never committed or uploaded.
++
++## Sprint 1 — containment (P0)
++1. Create `apps/worker/` as a separate unprivileged scanner workload (not the API container) with no host Docker socket, no privileged mode, read-only root filesystem, CPU/memory/process/time limits and disabled default networking.
++2. Add an explicit per-run network policy: deny private/loopback/link-local/metadata/internal planes; allow only written approved host+port; ensure DNS answers and actual connected peers are within the policy at each connection, including redirects.
++3. Validate policy in integration tests using controlled DNS/HTTP/IPv6 fixtures and redirect/rebinding cases; demonstrate zero prohibited outbound connections in network namespace logs. Application-level allowlists alone are insufficient.
++4. Introduce an explicit, independently attested worker capability. Never make a caller-provided boolean sufficient to authorize remote mode.
++5. Ensure live requests have strict GET/HEAD limits, bounded body/time/retries and cancellation; keep dynamic payloads/active tests out of this sprint.
++
++## Sprint 2 — scanner & evidence verification (P1)
++1. Run installed pinned Semgrep CE and Trivy against intentionally safe local test repos under the worker sandbox, capturing version, exit, timeout, database freshness, rulepack, stdout/stderr limits and no script execution.
++2. Expand CSP/cookie correctness fixtures (multiple CSP policies, browser enforcement caveats, duplicate attributes, Cookie prefixes, SameSite cases). Do not call a mere nonappearance `verified_fixed` without identity-specific positive evidence.
++3. Perform negative tests for report leakage, HTML sanitization, JSON-Schema validation, coverage gaps and failure results. Add release-blocking CI tests and documented commands.
++
++## Local Workbench hardening (P1)
++- Limit POST request body size, reject malformed JSON with proper status codes, and restrict browser requests using explicit loopback Host and Origin checks.
++- Move inline JavaScript/style to controlled assets and tighten CSP; run local-only browser regression tests.
++
++## Sprint 3 — developer workflow (P2)
++1. Only after G1/G2 security gates: Laravel API, org/project RBAC + PostgreSQL, auditable grant versions, isolated queues, cancellation and encrypted artifacts.
++2. Next.js UI, scanned findings, developer remediation and human-approved notifications. Do not auto-post security weaknesses to public GitHub issues.
++
++## Report required at completion
++Return exact changed file list, real test log, scans executed, network isolation proof, known limitations and features not yet implemented. Do not claim production readiness or professional pentest certification.
+--- a/README.md
++++ b/README.md
+@@ -2,19 +2,21 @@
+ 
+ **Developer-first, self-hosted security assessment and remediation workflow.**
+ 
+-> Status: **Stage 0 & Stage 1 vertical slice implemented (`v0.1.0-alpha.3` + unreleased audit fixes)**. Offline synthetic demo (`hegosentinel demo --offline`), fail-closed `policy-engine`, non-invasive web observers (`WEB-HEADER-001` with semantic CSP directive validation `NEW-02`, `WEB-COOKIE-001`, `WEB-TLS-001`, `WEB-REDIRECT-001`), read-only local `CODE-001` (Semgrep) and `DEP-001` (Trivy) adapters with fail-closed `realpathSync`/`lstatSync` deep symlink & post-scan TOCTOU protection (`HS-AUDIT-002` / `NEW-01`), multi-layer evidence redaction, project-bundled JSON Schema keyword subset & SARIF 2.1.0 runtime validators (`HS-AUDIT-008` / `NEW-03`), and strict per-asset/per-grant comparable re-test (`recheck-engine`, `HS-AUDIT-001`/`004`/`007`) are implemented and verified (`26/26` automated tests passing). Live outbound HTTP socket scanning (`restricted-remote`) is **not enabled in `v0.1.0-alpha.3` (fail-closed by default)** until OS/container egress firewall verification is active (`HSR-01` / `HS-AUDIT-003`). Laravel API, Next.js UI, SMTP delivery, and ZAP dynamic scanning remain **unimplemented** (planned for `v0.2+`). See [CHANGELOG.md](CHANGELOG.md).
++> Status: **Stage 0 & Stage 1 vertical slice implemented (`v0.1.0-alpha.4` + unreleased audit fixes)**. Offline synthetic demo (`hegosentinel demo --offline`), fail-closed `policy-engine`, non-invasive web observers (`WEB-HEADER-001` with semantic CSP directive validation `NEW-02`, `WEB-COOKIE-001`, `WEB-TLS-001`, `WEB-REDIRECT-001`), read-only local `CODE-001` (Semgrep) and `DEP-001` (Trivy) adapters with fail-closed `realpathSync`/`lstatSync` deep symlink & post-scan TOCTOU protection (`HS-AUDIT-002` / `NEW-01`), multi-layer evidence redaction, project-bundled JSON Schema keyword subset & SARIF 2.1.0 runtime validators (`HS-AUDIT-008` / `NEW-03`), and strict per-asset/per-grant comparable re-test (`recheck-engine`, `HS-AUDIT-001`/`004`/`007`) are implemented and verified (`32/32` automated tests passing). Live outbound HTTP socket scanning (`restricted-remote`) is **not enabled in `v0.1.0-alpha.4` (fail-closed by default)** until OS/container egress firewall verification is active (`HSR-01` / `HS-AUDIT-003`). Laravel API, Next.js UI, SMTP delivery, and ZAP dynamic scanning remain **unimplemented** (planned for `v0.2+`). See [CHANGELOG.md](CHANGELOG.md).
+ 
+-## Capability Status Matrix (`v0.1.0-alpha.3` — Implemented / Mocked / Planned)
++> **alpha.4 audit patch:** 6 additional regression tests, cookie-identity-specific positive validation, `SameSite` value validation, conservative duplicate/override CSP checks, and backward-compatible optional `positive_validation_fingerprints` report metadata. Tested only on offline synthetic fixtures; remote scanning remains blocked. See [AUDIT_ALPHA4_TR.md](AUDIT_ALPHA4_TR.md).
++
++## Capability Status Matrix (`v0.1.0-alpha.4` — Implemented / Mocked / Planned)
+ 
+ | Capability | Status | Details |
+ | --- | --- | --- |
+ | **Scope Grant & Written Permission Validator** | **Implemented** | Enforces expiring grants, time windows, method allowlists (`GET`/`HEAD`), and rejects wildcards (`SEC-001`). |
+ | **SSRF Policy, IPv4/IPv6 Classifier & DNS Rebind Pinning** | **Implemented** | Blocks private/loopback/link-local/metadata IPs (`169.254.169.254`, `fd00:ec2::254`, mapped IPv6) and verifies connected peer IPs (`SEC-002`..`004`). |
+ | **Web Observers (`WEB-HEADER-001`, `WEB-COOKIE-001`, `WEB-TLS-001`, `WEB-REDIRECT-001`)** | **Implemented (Offline Fixture Input)** | Evaluates headers (including semantic CSP directive/permissiveness validation `NEW-02`), cookies (discarding values at observation time), TLS metadata, and redirect targets against deterministic fixtures (`S1-01`). |
+-| **Live Remote HTTP/TLS Socket Transport (`restricted-remote`)** | **Fail-Closed / Planned** | Intentionally blocked by `verifyRemoteEgressSandboxGate` (`SEC-005` / `HS-AUDIT-003`); no live outbound HTTP requests are made in `v0.1.0-alpha.3`. |
++| **Live Remote HTTP/TLS Socket Transport (`restricted-remote`)** | **Fail-Closed / Planned** | Intentionally blocked by `verifyRemoteEgressSandboxGate` (`SEC-005` / `HS-AUDIT-003`); no live outbound HTTP requests are made in `v0.1.0-alpha.4`. |
+ | **Local Semgrep (`CODE-001`) & Trivy (`DEP-001`) Adapters** | **Implemented** | Uses `execFile` (`shell: false`), binary allowlist, and fail-closed `realpathSync`/`lstatSync` symlink, cycle, unreadable-dir, and post-scan TOCTOU protection (`SEC-006`, `HS-AUDIT-002`, `NEW-01`). |
+ | **Evidence Redaction & Exporters (JSON, MD, HTML, SARIF 2.1.0)** | **Implemented** | 9-pass secret scrubber + Draft 2020-12 JSON Schema & SARIF runtime validators (`validateScanReportDocument`, `validateRecheckReportDocument`, `validateSarifDocument`, `NEW-03`). |
+-| **Re-Test Engine (`compareScanReports`)** | **Implemented** | Requires exact `(rule_id, asset_key, grant_id, scope_version, profile, rule_version)` match; never marks unscanned endpoints or permissive/invalid CSP headers as `verified_fixed` (`HS-AUDIT-001`, `NEW-02`). |
++| **Re-Test Engine (`compareScanReports`)** | **Implemented (offline)** | Exact target/grant matching and cookie-fingerprint-level fix proof. A different secure cookie cannot prove that the original cookie was fixed. Conservative CSP verification rejects duplicate directives and permissive `script-src-elem` overrides (`AUD-06`). |
+ | **Laravel API, Next.js Dashboard, SMTP & ZAP DAST** | **Planned (`v0.2+`)** | Deferred to Stage 2 and Stage 3 ([docs/ROADMAP.md](docs/ROADMAP.md)). |
+ 
+ > **Independent audit patch note:** The test count and audit updates below refer to this modified working tree, not an officially tagged upstream release. No remote scanning has been enabled.
+@@ -23,7 +25,7 @@
+ 
+ ## Quickstart (Offline Demo & Verification)
+ 
+-Requires **Node.js >= 22.6.0 (22.16+ or 24.x)** (runs TypeScript natively with `--experimental-strip-types` and zero outbound network requests):
++Requires **Node.js 22.16+ or 24.x** (runs TypeScript natively with `--experimental-strip-types` and zero outbound network requests):
+ 
+ ```bash
+ npm run lint
+--- a/README.tr.md
++++ b/README.tr.md
+@@ -1,8 +1,10 @@
++> **alpha.4 yeni güvenlik doğruluğu:** Çerezlerde düzeltme yalnızca aynı çerez kimliği güvenli gözlemlenirse doğrulanır; geçersiz SameSite ve tekrarlanan / yanıltıcı CSP direktifleri güvenli kabul edilmez. Bu korumalar yerel örnek verilerle test edilmiştir, canlı tarama kapalıdır.
++
+ # HegoSentinel (Türkçe Özet)
+ 
+ **HegoSentinel**, yalnızca yetkilendirilmiş web uygulamalarını, API'leri ve kaynak kod depolarını incelemek için tasarlanan, geliştirici odaklı açık kaynak güvenlik denetimi ve düzeltme takip platformudur.
+ 
+-**Durum (`v0.1.0-alpha.3`):** **Stage 0 ve Stage 1 dikey kesiti uygulandı ve her iki bağımsız kod denetimi (`HS-AUDIT-001`..`009` ve `NEW-01`..`03`) bulguları kapatıldı (`26/26` test başarılı).** Çevrimdışı sentetik demo (`npm run demo`), fail-closed kapsam/SSRF doğrulayıcısı (`policy-engine`), semantik CSP doğrulamalı (`NEW-02`) `WEB-HEADER-001` / `WEB-COOKIE-001` / `WEB-TLS-001` / `WEB-REDIRECT-001` gözlemcileri, derin `realpathSync`/`lstatSync` + TOCTOU fail-closed symlink korumalı yerel Semgrep/Trivy adaptörleri (`HS-AUDIT-002` / `NEW-01`), kanıt maskeleme (`report-engine`), proje şemalarının kullandığı JSON Schema anahtar sözcüklerini doğrulayan runtime doğrulayıcısı (`NEW-03`) ve varlık/kapsam bazlı birebir yeniden test karşılaştırma motoru (`recheck-engine`, `HS-AUDIT-001`/`004`/`007`) çalışır durumdadır. Canlı uzak HTTP soket taraması (`restricted-remote`), ağ katmanı çıkış duvarı (egress sandbox) doğrulanana kadar güvenlik gereği **devre dışıdır (fail-closed)**. Laravel API, Next.js arayüzü, SMTP ve ZAP aktif tarama özellikleri henüz **uygulanmamıştır (`v0.2+`)**. Bkz. [CHANGELOG.md](CHANGELOG.md) ve [docs/ROADMAP.md](docs/ROADMAP.md).
++**Durum (`v0.1.0-alpha.4`):** **Stage 0 ve Stage 1 dikey kesiti uygulandı ve her iki bağımsız kod denetimi (`HS-AUDIT-001`..`009` ve `NEW-01`..`03`) bulguları kapatıldı (`32/32` test başarılı).** Çevrimdışı sentetik demo (`npm run demo`), fail-closed kapsam/SSRF doğrulayıcısı (`policy-engine`), semantik CSP doğrulamalı (`NEW-02`) `WEB-HEADER-001` / `WEB-COOKIE-001` / `WEB-TLS-001` / `WEB-REDIRECT-001` gözlemcileri, derin `realpathSync`/`lstatSync` + TOCTOU fail-closed symlink korumalı yerel Semgrep/Trivy adaptörleri (`HS-AUDIT-002` / `NEW-01`), kanıt maskeleme (`report-engine`), proje şemalarının kullandığı JSON Schema anahtar sözcüklerini doğrulayan runtime doğrulayıcısı (`NEW-03`) ve varlık/kapsam bazlı birebir yeniden test karşılaştırma motoru (`recheck-engine`, `HS-AUDIT-001`/`004`/`007`) çalışır durumdadır. Canlı uzak HTTP soket taraması (`restricted-remote`), ağ katmanı çıkış duvarı (egress sandbox) doğrulanana kadar güvenlik gereği **devre dışıdır (fail-closed)**. Laravel API, Next.js arayüzü, SMTP ve ZAP aktif tarama özellikleri henüz **uygulanmamıştır (`v0.2+`)**. Bkz. [CHANGELOG.md](CHANGELOG.md) ve [docs/ROADMAP.md](docs/ROADMAP.md).
+ 
+ ## Akış
+ 
+--- a/docs/ROADMAP.md
++++ b/docs/ROADMAP.md
+@@ -1,21 +1,21 @@
+ # HegoSentinel — Engineering Roadmap v2.0 & Implementation Matrix
+ 
+-> **Current Release:** `v0.1.0-alpha.3` (Offline Fixture & Local Source Engine Verified; Remote Network Socket Mode Fail-Closed).  
++> **Current Release:** `v0.1.0-alpha.4` (Offline Fixture & Local Source Engine Verified; Remote Network Socket Mode Fail-Closed).  
+ > **Revision:** 2026-11-04 · **Owner:** HegoWeb · **Target:** open-source, local-first security assessment and developer remediation workflow.  
+ > **Principle:** **No authorization → no scan; no safe egress → no remote scan; no evidence → no vulnerability claim.**
+ 
+ ---
+ 
+-## 0. Current Implementation Status Matrix (`v0.1.0-alpha.3`)
++## 0. Current Implementation Status Matrix (`v0.1.0-alpha.4`)
+ 
+ To ensure complete transparency between architectural goals and current executable code (`HS-AUDIT-003` / `HS-AUDIT-009`), the table below classifies every subsystem as **Implemented & Verified**, **Mocked (Synthetic Fixture)**, or **Planned / Fail-Closed**:
+ 
+-| Subsystem / Capability | Status in `v0.1.0-alpha.3` | Implementation & Verification Reference |
++| Subsystem / Capability | Status in `v0.1.0-alpha.4` | Implementation & Verification Reference |
+ | --- | --- | --- |
+ | **Scope Authorization & Written Permission Gate (`S0-01`)** | **Implemented & Verified** | [`packages/policy-engine/src/index.ts`](../packages/policy-engine/src/index.ts) (`SEC-001`) |
+ | **SSRF IPv4/IPv6 Classification, DNS Pinning & Socket Peer Verification (`S0-02`)** | **Implemented & Verified** | [`packages/policy-engine/src/index.ts`](../packages/policy-engine/src/index.ts) (`SEC-002`, `SEC-003`, `SEC-004`) |
+ | **Web Observers (`WEB-TLS-001`, `WEB-HEADER-001`, `WEB-COOKIE-001`, `WEB-REDIRECT-001`)** | **Implemented (Evaluated on Offline Fixtures)** | [`packages/scanner-core/src/index.ts`](../packages/scanner-core/src/index.ts) (`S1-01`, `HSR-04`) |
+-| **Live Outbound HTTP/TLS Network Socket Fetching (`restricted-remote`)** | **Fail-Closed / Planned (Not Enabled in `v0.1.0-alpha.3`)** | Denied by [`verifyRemoteEgressSandboxGate`](../packages/policy-engine/src/index.ts) (`SEC-005` / `HS-AUDIT-003`) until container egress firewall attestation is deployed |
++| **Live Outbound HTTP/TLS Network Socket Fetching (`restricted-remote`)** | **Fail-Closed / Planned (Not Enabled in `v0.1.0-alpha.4`)** | Denied by [`verifyRemoteEgressSandboxGate`](../packages/policy-engine/src/index.ts) (`SEC-005` / `HS-AUDIT-003`) until container egress firewall attestation is deployed |
+ | **Local Semgrep (`CODE-001`) & Trivy (`DEP-001`) Subprocess Adapters (`S1-02`)** | **Implemented & Verified (`realpathSync` + `lstatSync`)** | [`integrations/semgrep/src/index.ts`](../integrations/semgrep/src/index.ts), [`integrations/trivy/src/index.ts`](../integrations/trivy/src/index.ts) (`SEC-006`, `HS-AUDIT-002`) |
+ | **Collection Minimization & Multi-Pass Secret Redaction (`S1-04`)** | **Implemented & Verified** | [`packages/report-engine/src/index.ts`](../packages/report-engine/src/index.ts) (`SEC-007`) |
+ | **JSON, Markdown, Offline HTML & OASIS SARIF 2.1.0 Exporters + Runtime Validators** | **Implemented & Verified** | [`packages/report-engine/src/index.ts`](../packages/report-engine/src/index.ts), [`packages/findings-schema/src/index.ts`](../packages/findings-schema/src/index.ts) (`HS-AUDIT-008`) |
+@@ -81,6 +81,24 @@
+ - [x] Strict equivalence matching across `organization_id`, `project_id`, `grant_id`, `scope_version`, `profile`, `rule_id`, `rule_version`, and exact `asset_key` (`HS-AUDIT-001`, `HS-AUDIT-004`, `HS-AUDIT-007`).
+ - [x] Framework-specific remediation guides for `laravel`, `nextjs`, and `generic-web`.
+ 
++## 3.1 alpha.4 — Independent correctness gate (verified locally)
++
++- [x] `AUD-06-A`: Per-cookie positive fix proof is tied to the original finding fingerprint. Another safe cookie cannot automatically resolve the baseline finding.
++- [x] `AUD-06-B`: `SameSite` only accepts `Lax` / `Strict` / `None` for a valid attribute; invalid values remain reportable.
++- [x] `AUD-06-C`: Duplicate CSP directives and a permissive `script-src-elem` override cannot yield `verified_fixed`.
++- [x] Runtime report schema includes optional, identity-bound `positive_validation_fingerprints` evidence; older reports remain readable but without per-cookie proof cannot claim verified remediation.
++- [x] 32 local automated tests passed under Node 22.16.0, including six new regression tests; `lint`, real TypeScript `typecheck` and synthetic demo pass.
++
++**Remaining release blockers (do not unlock remote scanning):**
++
++1. **P0 / Network containment:** implement a dedicated sandboxed runner with OS/firewall-enforced outbound restrictions, DNS/connected-peer checks, scope authorization revalidation at request time and adversarial network tests. Keep `restricted-remote` disabled until verified.
++2. **P0 / Filesystem containment:** run untrusted Semgrep/Trivy scans in separate non-root read-only filesystem isolation; check symbolic links and mount escape under actual scanner execution. No untrusted build/package-manager hooks.
++3. **P1 / Evidence quality:** full CSP semantics and browser-version differences cannot be certified by a small deterministic observer. Treat rule conclusions as limited observations; validate via safe staging fixtures and independent review.
++4. **P1 / Integration:** test pinned installed Semgrep/Trivy binaries and vulnerability-database freshness on deliberate local fixtures. Current adapter tests alone do not establish full installed-tool compatibility.
++5. **P1 / Reports:** test schema migration compatibility, unsafe inputs for exporters, report storage encryption and retention when a multi-user backend arrives.
++6. **P1 / Local Workbench security:** bound JSON POST payload sizes, validate Host/Origin for loopback service and remove unsafe-inline CSP when UI assets are split.
++7. **P2 / Product:** Laravel API + PostgreSQL tenant isolation, worker cancellation and rate limits, Next.js UI, owner-approved delivery, then human-gated staging-only ZAP.
++
+ ## 4. Stage 2 — v0.2 Team platform (Planned)
+ 
+ - [ ] `S2-01`: Laravel API / PostgreSQL / multi-tenancy (`organizations`, `projects`, `authorization_grants`, RBAC).
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "hegosentinel",
+-  "version": "0.1.0-alpha.3",
++  "version": "0.1.0-alpha.4",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "hegosentinel",
+-      "version": "0.1.0-alpha.3",
++      "version": "0.1.0-alpha.4",
+       "license": "MIT",
+       "workspaces": [
+         "packages/*",
+@@ -22,6 +22,46 @@
+         "node": ">=22.6.0"
+       }
+     },
++    "integrations/semgrep": {
++      "name": "@hegosentinel/integration-semgrep",
++      "version": "0.1.0"
++    },
++    "integrations/trivy": {
++      "name": "@hegosentinel/integration-trivy",
++      "version": "0.1.0"
++    },
++    "node_modules/@hegosentinel/findings-schema": {
++      "resolved": "packages/findings-schema",
++      "link": true
++    },
++    "node_modules/@hegosentinel/integration-semgrep": {
++      "resolved": "integrations/semgrep",
++      "link": true
++    },
++    "node_modules/@hegosentinel/integration-trivy": {
++      "resolved": "integrations/trivy",
++      "link": true
++    },
++    "node_modules/@hegosentinel/policy-engine": {
++      "resolved": "packages/policy-engine",
++      "link": true
++    },
++    "node_modules/@hegosentinel/recheck-engine": {
++      "resolved": "packages/recheck-engine",
++      "link": true
++    },
++    "node_modules/@hegosentinel/remediation-catalog": {
++      "resolved": "packages/remediation-catalog",
++      "link": true
++    },
++    "node_modules/@hegosentinel/report-engine": {
++      "resolved": "packages/report-engine",
++      "link": true
++    },
++    "node_modules/@hegosentinel/scanner-core": {
++      "resolved": "packages/scanner-core",
++      "link": true
++    },
+     "node_modules/typescript": {
+       "version": "5.9.3",
+       "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+@@ -35,7 +75,30 @@
+       "engines": {
+         "node": ">=14.17"
+       }
++    },
++    "packages/findings-schema": {
++      "name": "@hegosentinel/findings-schema",
++      "version": "0.1.0"
++    },
++    "packages/policy-engine": {
++      "name": "@hegosentinel/policy-engine",
++      "version": "0.1.0"
++    },
++    "packages/recheck-engine": {
++      "name": "@hegosentinel/recheck-engine",
++      "version": "0.1.0"
++    },
++    "packages/remediation-catalog": {
++      "name": "@hegosentinel/remediation-catalog",
++      "version": "0.1.0"
++    },
++    "packages/report-engine": {
++      "name": "@hegosentinel/report-engine",
++      "version": "0.1.0"
++    },
++    "packages/scanner-core": {
++      "name": "@hegosentinel/scanner-core",
++      "version": "0.1.0"
+     }
+   }
+ }
+-
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "hegosentinel",
+-  "version": "0.1.0-alpha.3",
++  "version": "0.1.0-alpha.4",
+   "private": true,
+   "description": "Developer-first, self-hosted security assessment, evidence normalization, remediation, and re-test workflow.",
+   "license": "MIT",
+@@ -25,10 +25,10 @@
+     "lint": "node --experimental-strip-types ./scripts/lint-and-typecheck.ts --lint",
+     "typecheck": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.json --noEmit && node --experimental-strip-types ./scripts/lint-and-typecheck.ts --typecheck",
+     "test:unit": "node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts",
+-    "test:security": "node --experimental-strip-types --test ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/security/independent-boundary-audit.test.ts",
++    "test:security": "node --experimental-strip-types --test ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/security/independent-boundary-audit.test.ts ./tests/security/cookie-csp-identity-regression.test.ts",
+     "test:integration": "node --experimental-strip-types --test ./tests/integration/adapters-and-reports.test.ts",
+     "test:e2e": "node --experimental-strip-types --test ./tests/e2e/cli-demo.test.ts",
+-    "test": "node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/integration/adapters-and-reports.test.ts ./tests/e2e/cli-demo.test.ts ./tests/security/independent-boundary-audit.test.ts"
++    "test": "node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/integration/adapters-and-reports.test.ts ./tests/e2e/cli-demo.test.ts ./tests/security/independent-boundary-audit.test.ts ./tests/security/cookie-csp-identity-regression.test.ts"
+   },
+   "devDependencies": {
+     "typescript": "^5.9.3"
+--- a/packages/findings-schema/src/index.ts
++++ b/packages/findings-schema/src/index.ts
+@@ -4,7 +4,7 @@
+ import { fileURLToPath } from 'node:url';
+ 
+ export const SCHEMA_VERSION = '1.0.0' as const;
+-export const SCANNER_VERSION = '0.1.0-alpha.3' as const;
++export const SCANNER_VERSION = '0.1.0-alpha.4' as const;
+ 
+ export type StackTag = 'laravel' | 'nextjs' | 'generic-web';
+ export type ScanProfile = 'local-demo' | 'safe-web' | 'source';
+@@ -137,6 +137,8 @@
+   reason?: string;
+   tool_version?: string;
+   positive_validation_passed?: boolean;
++  /** Optional exact finding identities that received positive evidence on this run. */
++  positive_validation_fingerprints?: string[];
+ }
+ 
+ export interface ScanCoverage {
+@@ -657,6 +659,24 @@
+     );
+   }
+ 
++  for (const [idx, check] of r.coverage.checks.entries()) {
++    if (check.positive_validation_fingerprints?.length) {
++      if (check.rule_id !== 'WEB-COOKIE-001' || check.status !== 'executed' ||
++          check.positive_validation_passed !== true) {
++        errors.push(`$.coverage.checks[${idx}]: per-finding proof requires executed WEB-COOKIE-001 positive coverage`);
++      }
++      const fingerprints = check.positive_validation_fingerprints;
++      if (new Set(fingerprints).size !== fingerprints.length) {
++        errors.push(`$.coverage.checks[${idx}]: duplicate positive validation fingerprint`);
++      }
++      if (r.findings.some((finding) =>
++        finding.rule_id === check.rule_id && finding.asset_key === check.asset_key &&
++        fingerprints.includes(finding.fingerprint))) {
++        errors.push(`$.coverage.checks[${idx}]: a current finding cannot also be positive-validation evidence`);
++      }
++    }
++  }
++
+   r.findings.forEach((f, idx) => {
+     validateAgainstJsonSchema(f, FINDING_JSON_SCHEMA, `$.findings[${idx}]`, errors);
+     const sem = validateFindingSemantics(f);
+--- a/packages/recheck-engine/src/index.ts
++++ b/packages/recheck-engine/src/index.ts
+@@ -325,7 +325,11 @@
+ 
+     // 6. Present in baseline, absent in current -> distinguish verified_fixed vs no_longer_observed (S1-05 / HSR-05)
+     if (bf && !cf) {
+-      if (currentCheck.positive_validation_passed === true) {
++      // Cookie findings are individual identities within a rule/endpoint. Never
++      // infer an old cookie was fixed because some other cookie was configured safely.
++      const proofMatchesFinding = ref.rule_id !== 'WEB-COOKIE-001' ||
++        currentCheck.positive_validation_fingerprints?.includes(fp) === true;
++      if (currentCheck.positive_validation_passed === true && proofMatchesFinding) {
+         counts.verified_fixed += 1;
+         items.push({
+           fingerprint: fp,
+--- a/packages/scanner-core/src/index.ts
++++ b/packages/scanner-core/src/index.ts
+@@ -138,6 +138,14 @@
+ 
+   const directives = new Map<string, string[]>();
+   const unknownDirectives: string[] = [];
++  const duplicateDirectives: string[] = [];
++
++  // Multiple CSP headers are separate browser policies, not one comma-separated policy.
++  // This observer cannot currently prove their combined behavior; fail conservatively.
++  if (rawCsp.includes(',')) {
++    return { status: 'invalid', positiveValidationPassed: false,
++      reason: 'Multiple/comma-separated CSP policies require manual review' };
++  }
+ 
+   for (const seg of segments) {
+     const tokens = seg.split(/\s+/).filter(Boolean);
+@@ -145,9 +153,17 @@
+     const values = tokens.slice(1);
+     if (!KNOWN_CSP_DIRECTIVES.has(name)) {
+       unknownDirectives.push(name);
++    } else if (directives.has(name)) {
++      // Browsers use the FIRST occurrence; last-wins could falsely certify an unsafe policy.
++      duplicateDirectives.push(name);
+     } else {
+       directives.set(name, values);
+     }
++  }
++
++  if (duplicateDirectives.length > 0) {
++    return { status: 'invalid', positiveValidationPassed: false,
++      reason: `Duplicate CSP directive(s): ${duplicateDirectives.join(', ')}` };
+   }
+ 
+   if (unknownDirectives.length > 0) {
+@@ -201,6 +217,20 @@
+   }
+   if (lowerSources.includes('data:')) {
+     unsafeReasons.push('data: script source');
++  }
++
++  // script-src-elem overrides script-src/default-src for script elements in CSP3;
++  // it must not silently re-enable unsafe sources while a fallback looks strict.
++  const effectiveElementSources = directives.get('script-src-elem');
++  if (effectiveElementSources) {
++    const lowerElementSources = effectiveElementSources.map((s) => s.toLowerCase());
++    if (lowerElementSources.length === 0 || lowerElementSources.some(
++      (source) => source === '*' || source.includes('*') || source === 'http:' ||
++        source === 'https:' || source.startsWith('http://') ||
++        source === 'data:' || source === "'unsafe-inline'" || source === "'unsafe-eval'"
++    )) {
++      unsafeReasons.push('permissive script-src-elem override');
++    }
+   }
+ 
+   if (unsafeReasons.length > 0) {
+@@ -271,7 +301,10 @@
+     } else if (lower === 'httponly') {
+       httpOnly = true;
+     } else if (lower.startsWith('samesite=')) {
+-      sameSite = attr.slice('samesite='.length).trim();
++      const value = attr.slice('samesite='.length).trim().toLowerCase();
++      // An arbitrary SameSite string is not a valid browser-enforced SameSite policy.
++      sameSite = value === 'strict' ? 'Strict' : value === 'lax' ? 'Lax' :
++        value === 'none' ? 'None' : undefined;
+     }
+   }
+ 
+@@ -549,6 +582,8 @@
+ 
+   const setCookies = getSetCookieHeaders(endpoint.headers);
+   let seq = params.findingSeqStart;
++  const validatedCookieFingerprints: string[] = [];
++  let inspectedSessionCookies = 0;
+ 
+   for (const rawCookie of setCookies) {
+     const meta = parseCookieMetadataWithoutValue(rawCookie);
+@@ -563,21 +598,24 @@
+       continue;
+     }
+ 
++    inspectedSessionCookies += 1;
++    const fingerprint = computeFindingFingerprint({
++      organization_id: grant.organization_id,
++      project_id: grant.project_id,
++      rule_id: 'WEB-COOKIE-001',
++      asset_key: assetKey,
++      context_key: `cookie:${meta.name.toLowerCase()}`
++    });
++
+     const missingAttrs: string[] = [];
+     if (!meta.secure) missingAttrs.push('Secure');
+     if (!meta.httpOnly) missingAttrs.push('HttpOnly');
+-    if (!meta.sameSite) missingAttrs.push('SameSite');
+-
+-    if (missingAttrs.length > 0) {
+-      const evidenceSummary = `Cookie "${meta.name}" (value omitted) on ${assetKey} is missing attribute(s): ${missingAttrs.join(', ')}.`;
+-      const fingerprint = computeFindingFingerprint({
+-        organization_id: grant.organization_id,
+-        project_id: grant.project_id,
+-        rule_id: 'WEB-COOKIE-001',
+-        asset_key: assetKey,
+-        context_key: `cookie:${meta.name.toLowerCase()}`
+-      });
+-
++    if (!meta.sameSite) missingAttrs.push('SameSite (Lax, Strict, or None)');
++
++    if (missingAttrs.length === 0) {
++      validatedCookieFingerprints.push(fingerprint);
++    } else {
++      const evidenceSummary = `Cookie "${meta.name}" (value omitted) on ${assetKey} is missing or has invalid attribute(s): ${missingAttrs.join(', ')}.`;
+       findings.push({
+         schema_version: SCHEMA_VERSION,
+         id: `HS-${String(seq).padStart(4, '0')}`,
+@@ -615,7 +653,10 @@
+       rule_version: standardsEntry.version,
+       status: 'executed',
+       asset_key: assetKey,
+-      positive_validation_passed: setCookies.length > 0 && findings.length === 0
++      positive_validation_passed: inspectedSessionCookies > 0 && findings.length === 0,
++      // Identity-specific proof: another cookie on the same URL is NOT evidence
++      // that a previously vulnerable cookie was secured.
++      positive_validation_fingerprints: validatedCookieFingerprints
+     },
+     findings,
+     notes
+--- a/packages/scanner-core/src/server.ts
++++ b/packages/scanner-core/src/server.ts
+@@ -72,7 +72,7 @@
+     "name": "HegoSentinel",
+     "applicationCategory": "DeveloperApplication",
+     "operatingSystem": "Cross-platform",
+-    "softwareVersion": "0.1.0-alpha.3",
++    "softwareVersion": "0.1.0-alpha.4",
+     "license": "https://opensource.org/licenses/MIT",
+     "description": "Developer-first, self-hosted security assessment and remediation workflow."
+   }
+@@ -552,7 +552,7 @@
+       <a href="#top" class="brand">
+         <span class="brand-dot"></span>
+         <span>HEGOSENTINEL</span>
+-        <span class="mono-label">v0.1.0-alpha.3</span>
++        <span class="mono-label">v0.1.0-alpha.4</span>
+       </a>
+       <nav class="nav-links" aria-label="Primary Navigation">
+         <a href="#workbench">01 / Live Workbench</a>
+@@ -753,7 +753,7 @@
+           <div>
+             <span class="tag tag-warn">SEC-005 · HSR-01 · HS-AUDIT-003</span>
+             <h4 style="margin-top:0.6rem;">Remote Egress Sandbox Blocker</h4>
+-            <p style="margin-top:0.35rem;">Live remote HTTP socket fetching is not enabled in v0.1.0-alpha.3. Remote target mode fails closed until OS/container egress firewall attestation is deployed.</p>
++            <p style="margin-top:0.35rem;">Live remote HTTP socket fetching is not enabled in v0.1.0-alpha.4. Remote target mode fails closed until OS/container egress firewall attestation is deployed.</p>
+           </div>
+           <div class="mono-label" style="color:var(--status-warn);">GATE: FAIL-CLOSED (REMOTE DISABLED)</div>
+         </article>
+@@ -788,7 +788,7 @@
+   <footer class="site-footer">
+     <div class="footer-inner">
+       <div>
+-        <strong>HegoSentinel v0.1.0-alpha.3</strong> · MIT License · Copyright (c) 2026 HegoWeb.<br />
++        <strong>HegoSentinel v0.1.0-alpha.4</strong> · MIT License · Copyright (c) 2026 HegoWeb.<br />
+         <span>Zero third-party cookies or analytics trackers are used on this local workbench (KVKK / GDPR compliant by design).</span>
+       </div>
+       <div class="mono-label">
+--- a/schemas/report.schema.json
++++ b/schemas/report.schema.json
+@@ -80,7 +80,10 @@
+               "asset_key": { "type": "string", "minLength": 1 },
+               "reason": { "type": "string" },
+               "tool_version": { "type": "string" },
+-              "positive_validation_passed": { "type": "boolean" }
++              "positive_validation_passed": { "type": "boolean" },
++              "positive_validation_fingerprints": {
++                "type": "array", "items": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
++              }
+             }
+           }
+         }
+--- /dev/null
++++ b/tests/security/cookie-csp-identity-regression.test.ts
+@@ -0,0 +1,57 @@
++import assert from 'node:assert/strict';
++import { readFileSync } from 'node:fs';
++import { resolve } from 'node:path';
++import { describe, it } from 'node:test';
++import { evaluateCspPolicySemantics, executeScan } from '../../packages/scanner-core/src/index.ts';
++import { compareScanReports } from '../../packages/recheck-engine/src/index.ts';
++import { validateScanReportDocument, type ScopeAuthorizationGrant } from '../../packages/findings-schema/src/index.ts';
++
++const grant = JSON.parse(readFileSync(resolve(process.cwd(), 'examples/safe-demo/hegosentinel.scope.json'), 'utf8')) as ScopeAuthorizationGrant;
++const url = 'https://demo.example.test/';
++function fixture(setCookie: string) {
++  return {
++    fixture_id: 'COOKIE-IDENTITY-REGRESSION',
++    description: 'Synthetic cookie evidence with stable HTML response',
++    endpoints: [{url, method: 'GET' as const, status_code: 200,
++      headers: {'content-type': 'text/html', 'content-security-policy': "default-src 'self'", 'set-cookie': [setCookie]}}]
++  };
++}
++
++describe('Audit: evidence must prove the same cookie was fixed', () => {
++  it('different secure cookie cannot prove remediation of the original vulnerable cookie', async () => {
++    const before = await executeScan({grant, mode:'offline-fixture', fixture:fixture('auth_session=abc; Path=/'), scanId:'COOKIE-A'});
++    const after = await executeScan({grant, mode:'offline-fixture', fixture:fixture('new_cookie=xyz; Secure; HttpOnly; SameSite=Lax'), scanId:'COOKIE-B'});
++    const result = compareScanReports(before.report, after.report);
++    assert.equal(before.report.findings.some(f=>f.rule_id==='WEB-COOKIE-001'),true);
++    assert.equal(result.counts.verified_fixed,0);
++    assert.equal(result.items.find(i=>i.rule_id==='WEB-COOKIE-001')?.recheck_state,'no_longer_observed');
++  });
++  it('the same cookie with all valid attributes can verify remediation', async () => {
++    const before = await executeScan({grant, mode:'offline-fixture', fixture:fixture('auth_session=abc; Path=/'), scanId:'COOKIE-C'});
++    const after = await executeScan({grant, mode:'offline-fixture', fixture:fixture('auth_session=xyz; Secure; HttpOnly; SameSite=Strict'), scanId:'COOKIE-D'});
++    const result = compareScanReports(before.report, after.report);
++    assert.equal(result.items.find(i=>i.rule_id==='WEB-COOKIE-001')?.recheck_state,'verified_fixed');
++    assert.equal(validateScanReportDocument(after.report).valid, true);
++  });
++  it('unknown SameSite attribute must not be accepted as a secure fix', async () => {
++    const before = await executeScan({grant, mode:'offline-fixture', fixture:fixture('auth_session=abc; Path=/'), scanId:'COOKIE-E'});
++    const after = await executeScan({grant, mode:'offline-fixture', fixture:fixture('auth_session=xyz; Secure; HttpOnly; SameSite=Unknown'), scanId:'COOKIE-F'});
++    const result = compareScanReports(before.report, after.report);
++    assert.equal(result.counts.verified_fixed,0);
++    assert.equal(result.items.find(i=>i.rule_id==='WEB-COOKIE-001')?.recheck_state,'persistent');
++  });
++});
++
++describe('Audit: conservative CSP remediation evidence', () => {
++  it('duplicate directives must not be marked enforcing (browser uses first directive)', () => {
++    const r=evaluateCspPolicySemantics("default-src *; default-src 'self'");
++    assert.equal(r.positiveValidationPassed,false);
++  });
++  it('a permissive script-src-elem override must not be marked enforcing', () => {
++    const r=evaluateCspPolicySemantics("default-src 'self'; script-src-elem *");
++    assert.equal(r.positiveValidationPassed,false);
++  });
++  it('a narrow script policy remains accepted for deterministic demo verification', () => {
++    assert.equal(evaluateCspPolicySemantics("default-src 'self'").positiveValidationPassed,true);
++  });
++});

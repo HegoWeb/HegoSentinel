@@ -1,0 +1,22 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:5 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> hegosentinel@0.1.0-alpha.4 test:integration
+> node --experimental-strip-types --test ./tests/integration/adapters-and-reports.test.ts
+
+▶ Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF)
+  ✔ Normalizes offline Semgrep (CODE-001) and Trivy (DEP-001) fixtures and exports valid SARIF 2.1.0 (27.5897ms)
+✔ Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF) (28.4823ms)
+ℹ tests 1
+ℹ suites 1
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 235.7296

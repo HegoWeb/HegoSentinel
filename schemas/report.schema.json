@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hegosentinel.dev/schemas/report/v1.0.0.json",
+  "title": "HegoSentinelScanReport",
+  "description": "Versioned, redacted HegoSentinel scan report with first-class coverage metadata (S1-04 / HSR-07).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scan_id",
+    "organization_id",
+    "project_id",
+    "project_name",
+    "grant_id",
+    "scope_version",
+    "profile",
+    "mode",
+    "scanner_version",
+    "started_at",
+    "finished_at",
+    "disclaimer",
+    "coverage",
+    "summary",
+    "findings",
+    "informational_notes"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "scan_id": { "type": "string", "minLength": 1 },
+    "organization_id": { "type": "string", "minLength": 1 },
+    "project_id": { "type": "string", "minLength": 1 },
+    "project_name": { "type": "string", "minLength": 1 },
+    "grant_id": { "type": "string", "minLength": 1 },
+    "scope_version": { "type": "integer", "minimum": 0 },
+    "profile": { "type": "string", "enum": ["local-demo", "safe-web", "source"] },
+    "mode": { "type": "string", "enum": ["offline-fixture", "restricted-remote", "local-source"] },
+    "scanner_version": { "type": "string", "minLength": 1 },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "disclaimer": { "type": "string", "minLength": 10 },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "global_status",
+        "request_count",
+        "max_request_budget",
+        "checks"
+      ],
+      "properties": {
+        "global_status": {
+          "type": "string",
+          "enum": ["complete", "completed_with_gaps", "failed", "denied"]
+        },
+        "request_count": { "type": "integer", "minimum": 0 },
+        "max_request_budget": { "type": "integer", "minimum": 0 },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rule_id", "rule_version", "status", "asset_key"],
+            "properties": {
+              "rule_id": {
+                "type": "string",
+                "enum": [
+                  "WEB-TLS-001",
+                  "WEB-HEADER-001",
+                  "WEB-COOKIE-001",
+                  "WEB-REDIRECT-001",
+                  "CODE-001",
+                  "DEP-001"
+                ]
+              },
+              "rule_version": { "type": "string", "minLength": 1 },
+              "status": {
+                "type": "string",
+                "enum": ["executed", "skipped", "failed", "denied"]
+              },
+              "asset_key": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string" },
+              "tool_version": { "type": "string" },
+              "tool_status": {
+                "type": "string",
+                "enum": ["exited", "killed", "timed_out", "not_installed", "fixture", "blocked"]
+              },
+              "exit_code": { "type": "integer" },
+              "timed_out": { "type": "boolean" },
+              "db_freshness": {
+                "type": "string",
+                "enum": ["fresh", "stale", "unknown"]
+              },
+              "rulepack_version": { "type": "string" },
+              "db_version": { "type": "string" },
+              "positive_validation_passed": { "type": "boolean" },
+              "positive_validation_fingerprints": {
+                "type": "array", "items": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_findings",
+        "by_priority",
+        "by_verification_status",
+        "informational_count"
+      ],
+      "properties": {
+        "total_findings": { "type": "integer", "minimum": 0 },
+        "by_priority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["critical", "high", "medium", "low", "info"],
+          "properties": {
+            "critical": { "type": "integer", "minimum": 0 },
+            "high": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "low": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "by_verification_status": { "type": "object" },
+        "informational_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "findings": {
+      "type": "array"
+    },
+    "informational_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "asset_key", "note"],
+        "properties": {
+          "rule_id": { "type": "string", "minLength": 1 },
+          "asset_key": { "type": "string", "minLength": 1 },
+          "note": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
+

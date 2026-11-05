@@ -1,0 +1,25 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 demo
+> node --experimental-strip-types ./packages/scanner-core/src/cli.ts demo --offline
+
+=== HegoSentinel Offline Synthetic Demo (Zero External Network Access) ===
+Grant Verified: GRANT-DEMO-2026-0001 (Scope v1) · Target: https://demo.example.test/
+
+[Run 1 — Baseline Scan: SCAN-DEMO-BASELINE-001]
+  Coverage Status: COMPLETE (1/10 requests)
+  Observations: 2 · Informational Notes: 2
+  - HS-0001 [WEB-HEADER-001] Content-Security-Policy header not observed (Priority: medium, Confidence: high, Status: observed)
+  - HS-0002 [WEB-COOKIE-001] Session cookie attributes need review (hegosentinel_session) (Priority: medium, Confidence: medium, Status: needs_review)
+
+[Run 2 — Re-Test After Sample Fixture Change: SCAN-DEMO-PATCHED-002]
+  Comparable: true
+  - [WEB-HEADER-001] Content-Security-Policy header not observed: observed -> VERIFIED_FIXED
+  - [WEB-COOKIE-001] Session cookie attributes need review (hegosentinel_session): needs_review -> PERSISTENT
+
+Generated Sanitized Artifacts:
+  - <repo>\reports\demo-baseline.json
+  - <repo>\reports\demo-baseline.md
+  - <repo>\reports\demo-patched.json
+  - <repo>\reports\demo-recheck.json
+  - <repo>\reports\demo-recheck.md
+  - <repo>\reports\demo-recheck.html

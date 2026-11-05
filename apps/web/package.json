@@ -1,0 +1,12 @@
+{
+  "name": "@hegosentinel/web",
+  "version": "0.1.0-alpha.4",
+  "private": true,
+  "type": "module",
+  "description": "HegoSentinel Node HTTP SSR Security Assessment & Remediation Platform Prototype (TR/EN)",
+  "scripts": {
+    "dev": "node --experimental-strip-types ./src/server.ts --serve",
+    "start": "node --experimental-strip-types ./src/server.ts --serve"
+  }
+}
+

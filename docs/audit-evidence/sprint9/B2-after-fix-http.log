@@ -1,0 +1,22 @@
+{
+  "expired_grant_with_backdated_now": {
+    "http_status": 403,
+    "allowed": false,
+    "reason": "scope_expired"
+  },
+  "valid_grant_request": {
+    "http_status": 200,
+    "allowed": true
+  },
+  "forwarded_headers_to_target": [
+    "accept",
+    "user-agent",
+    "x-custom-trace"
+  ],
+  "forwarded_unapproved_header": [],
+  "transport_followRedirects": false,
+  "audit_contains_secret_query_value": false,
+  "audit_contains_credential_header_values": false,
+  "audit_sample_target_url": "https://demo.example.test/?token=[REDACTED]&code=[REDACTED]&page=2",
+  "audit_chain_valid": true
+}

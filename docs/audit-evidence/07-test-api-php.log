@@ -1,0 +1,46 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 test:api
+> php apps/api/tests/run-api-tests.php
+
+========================================================================
+HegoSentinel Laravel API (apps/api) ÔÇö 14-Module & SEC-011..013 Test Suite
+========================================================================
+  [PASS] GET /api/v1/health returns 200 OK and pinned scanner versions
+  [PASS] Initial SHA-256 audit log hash chain is valid
+  [PASS] Module 1: Rejects invalid credentials with 401 Unauthorized
+  [PASS] Module 1: Owner login issues session token
+  [PASS] Module 1: Password reset token issuance works safely
+  [PASS] Module 2: Lists organization members and verified notification domains
+  [PASS] Module 3 (SEC-011): Viewer role cannot invite or modify organization members
+  [PASS] Module 2 & 3: Owner can invite and configure team member RBAC
+  [PASS] Module 4 & 5 (SEC-002): Blocks cloud metadata IP 169.254.169.254 target creation
+  [PASS] Module 4 & 5 (SEC-001): Blocks wildcard hostname *.example.test in target scope
+  [PASS] Module 4 & 5: Creates authorized project, target asset, and ScopeAuthorizationGrant v1
+  [PASS] Module 5 (SEC-001): Rejects scope grant when written_permission_ref equals domain_control_proof
+  [PASS] Module 6: restricted-remote mode is fail-closed (BLOCKED) until independent network isolation is enabled
+  [PASS] Module 3 & 6 (SEC-011): Viewer role is blocked from triggering scans
+  [PASS] Module 6 & 7: Executes baseline authorized scan and records coverage matrix + findings
+  [PASS] SEC-011: Cross-organization user is blocked from reading tenant scan report
+  [PASS] SEC-011: Developer cannot access unassigned project within same organization
+  [PASS] Module 8: Lists normalized findings with evidence hashes and OWASP/CWE references
+  [PASS] Module 8 (SEC-010 / SEC-011): Developer cannot approve false_positive suppressions
+  [PASS] Module 8 (SEC-010): Security Lead creates scoped false_positive suppression
+  [PASS] Module 9: Lists remediation tasks with framework code patch guidance
+  [PASS] Module 9: Developer updates remediation task status to ready_for_retest
+  [PASS] Module 10: Side-by-side re-test comparison verifies fixed findings and scoped suppressions
+  [PASS] Module 11: Safe report export succeeds for format JSON
+  [PASS] Module 11: Safe report export succeeds for format MD
+  [PASS] Module 11: Safe report export succeeds for format HTML
+  [PASS] Module 11: Safe report export succeeds for format SARIF
+  [PASS] Module 11: Safe report export succeeds for format PDF
+  [PASS] Module 12 (SEC-013): Blocks public webhook sink hooks.slack.com
+  [PASS] Module 12 (SEC-013): Blocks notification to unverified recipient domain
+  [PASS] Module 12 (SEC-013): Blocks notification containing unredacted Bearer secret token
+  [PASS] Module 12 (SEC-013): Blocks developer role from approving outbound notifications
+  [PASS] Module 12 (SEC-013): Dispatches approved notification to verified domain
+  [PASS] Module 14 (SEC-012 / SEC-011): Developer role cannot trigger emergency stop
+  [PASS] Module 14 (SEC-012): Owner triggers emergency stop and terminates scan job
+  [PASS] Module 13: Tamper-evident SHA-256 audit log chain verified (34 entries)
+------------------------------------------------------------------------
+API Test Summary: 36 passed, 0 failed
+========================================================================

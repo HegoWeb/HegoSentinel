@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hegosentinel.dev/schemas/finding/v1.0.0.json",
+  "title": "HegoSentinelFinding",
+  "description": "Normalized, evidence-backed security observation and finding record (S1-03 / HSR-04).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "rule_id",
+    "rule_version",
+    "organization_id",
+    "project_id",
+    "asset_key",
+    "fingerprint",
+    "title",
+    "observed_condition",
+    "evidence_summary",
+    "evidence_hash",
+    "inferred_risk",
+    "limitations",
+    "confidence",
+    "risk_priority",
+    "priority_basis",
+    "verification_status",
+    "scanner_version",
+    "observed_at",
+    "standards",
+    "remediation",
+    "validation_criterion"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "id": { "type": "string" },
+    "rule_id": { "type": "string" },
+    "rule_version": { "type": "string" },
+    "organization_id": { "type": "string" },
+    "project_id": { "type": "string" },
+    "asset_key": { "type": "string" },
+    "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "title": { "type": "string" },
+    "observed_condition": { "type": "string" },
+    "evidence_summary": { "type": "string" },
+    "evidence_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "inferred_risk": { "type": "string" },
+    "limitations": { "type": "string" },
+    "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+    "risk_priority": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low", "info"]
+    },
+    "priority_basis": {
+      "type": "string",
+      "enum": ["internal_priority", "cvss_v4"]
+    },
+    "cvss_v4_vector": { "type": "string" },
+    "cvss_v4_score": { "type": "number", "minimum": 0, "maximum": 10 },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "observed",
+        "needs_review",
+        "confirmed",
+        "false_positive",
+        "no_longer_observed",
+        "verified_fixed",
+        "reopened"
+      ]
+    },
+    "scanner_version": { "type": "string" },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "standards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cwe", "owasp_asvs_5_0", "owasp_wstg_4_2", "references"],
+      "properties": {
+        "cwe": { "type": "array", "items": { "type": "string" } },
+        "owasp_asvs_5_0": { "type": "array", "items": { "type": "string" } },
+        "owasp_wstg_4_2": { "type": "array", "items": { "type": "string" } },
+        "references": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "remediation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "owner_role", "framework_guides"],
+      "properties": {
+        "summary": { "type": "string" },
+        "owner_role": { "type": "string" },
+        "framework_guides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["framework", "prerequisites", "steps", "side_effects"],
+            "properties": {
+              "framework": { "type": "string" },
+              "prerequisites": { "type": "string" },
+              "steps": { "type": "array", "items": { "type": "string" } },
+              "side_effects": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "validation_criterion": { "type": "string" }
+  }
+}
+

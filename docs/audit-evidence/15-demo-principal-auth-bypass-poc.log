@@ -1,0 +1,6 @@
+APP_ENV=production (set before boot)
+1) no credentials at all                                       => HTTP 401 | {"error":"unauthenticated","message":"Authentication required: missing Bearer token"}
+2) X-Demo-Principal: usr-owner-01 (no password/token)          => HTTP 200 | {"user_id":"usr-owner-01","email":"admin@hegoweb.local","name":"Demo Owner","organization_id":"org-hegoweb-sec","role":"owner"}
+3) X-Demo-Principal: usr-beta-owner (other tenant owner)       => HTTP 200 | {"user_id":"usr-beta-owner","email":"owner@betafintech.example.test","name":"Beta Tenant Owner","organization_id":"org-beta-isolated","role":"owner"}
+4) impersonated owner lists projects                           => HTTP 200 | projects visible: 3
+5) impersonated owner reads audit log                          => HTTP 200 | audit entries readable: 2

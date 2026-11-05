@@ -1,0 +1,54 @@
+PHP Warning:  Undefined array key "preferred_locale" in <HEAD-copy>\apps\api\app\Services\SecurityPlatformService.php on line 395
+
+Warning: Undefined array key "preferred_locale" in <HEAD-copy>\apps\api\app\Services\SecurityPlatformService.php on line 395
+{
+    "root_label": "head_tree",
+    "checks": {
+        "S9-01 X-Demo-Principal impersonation (HTTP 200 = exposed)": {
+            "exposed": true,
+            "status": 200
+        },
+        "S9-02 register joins foreign org as owner (sees victim projects)": {
+            "exposed": true,
+            "victim_projects_visible": 3,
+            "org": "org-hegoweb-sec",
+            "role": "owner"
+        },
+        "S9-03 invited user has built-in default password": {
+            "exposed": true,
+            "invite_status": 200
+        },
+        "S9-04 no brute-force lockout": {
+            "exposed": true
+        },
+        "S9-05 read-only viewer can run Re-Test (mutates tasks)": {
+            "exposed": true,
+            "status": 201
+        },
+        "S9-06 viewer can read org audit trail": {
+            "exposed": true,
+            "status": 200
+        },
+        "S9-07 developer hand-closes a task as verified_closed": {
+            "exposed": true,
+            "status": 200
+        },
+        "S9-08 cross-tenant denial writes victim org/project ids into attacker audit log": {
+            "exposed": true
+        },
+        "S9-09 createProject accepts ../ repository_path": {
+            "exposed": true,
+            "status": 201
+        },
+        "S9-10 scan of an arbitrary workspace directory (not a project asset)": {
+            "exposed": true,
+            "status": 201
+        },
+        "S9-11 new scan runs right after a project-wide emergency stop": {
+            "exposed": true,
+            "status": 201
+        }
+    },
+    "exposed_count": 11,
+    "total": 11
+}

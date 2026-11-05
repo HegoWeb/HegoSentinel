@@ -1,0 +1,11 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 verify:release-gate
+> node --experimental-strip-types ./scripts/release-gate-check.ts
+
+[RELEASE GATE: BLOCKED] Production release is blocked (0 FAIL, 6 SKIP — NOT VERIFIED):
+  - [SKIP — NOT VERIFIED] WKR-001-RUNTIME (linux-docker-runtime): SKIP — NOT VERIFIED: Docker Engine not available on host (ENOENT)
+  - [SKIP — NOT VERIFIED] WKR-002-RUNTIME (linux-docker-runtime): Host mount/env rejection PASS (badMountBuild.allowed=false); live container probe SKIP — NOT VERIFIED (Docker Engine not available on host (ENOENT))
+  - [SKIP — NOT VERIFIED] WKR-003-RUNTIME (linux-docker-runtime): SKIP — NOT VERIFIED: Docker Engine not available on host (ENOENT)
+  - [SKIP — NOT VERIFIED] WKR-005-RUNTIME (linux-docker-runtime): SKIP — NOT VERIFIED: Docker Engine not available on host (ENOENT)
+  - [SKIP — NOT VERIFIED] CODE-001-BINARY (real-binary-runtime): SKIP — NOT VERIFIED: semgrep binary not installed in PATH (2)
+  - [SKIP — NOT VERIFIED] EGR-LINUX-NETNS-RUNTIME (linux-netns-runtime): SKIP — NOT VERIFIED: Linux Docker --internal network + E2E HTTP broker probe not executed on this host (Docker Engine not available on host (ENOENT))

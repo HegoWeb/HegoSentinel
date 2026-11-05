@@ -1,0 +1,127 @@
+name: hegosentinel-platform
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hegosentinel
+      POSTGRES_USER: hegosentinel
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-hegosentinel_local_dev}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - hego_pgdata:/var/lib/postgresql/data
+    networks:
+      - hego_platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hegosentinel -d hegosentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - hego_platform
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  egress-broker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    command: ["node", "--experimental-strip-types", "apps/egress-broker/src/index.ts", "--serve"]
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      PORT: "8090"
+      HOST: "0.0.0.0"
+      HEGOSENTINEL_BROKER_SECRET: ${HEGOSENTINEL_BROKER_SECRET:-hegosentinel-local-broker-secret-2026}
+    networks:
+      - hego_internal
+      - hego_platform
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1.0
+    network_mode: "none"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: hegosentinel
+      DB_USERNAME: hegosentinel
+      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_local_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      QUEUE_CONNECTION: redis
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - hego_platform
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: "http://api:8000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - hego_platform
+
+networks:
+  hego_platform:
+    driver: bridge
+  hego_internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  hego_pgdata:
+

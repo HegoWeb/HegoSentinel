@@ -1,0 +1,16 @@
+▶ Sprint C (P1): Real scanner binary probes, source drift re-test, and TLS/HTML boundary matrix
+  ✔ Real Semgrep binary execution against repository fixture (or SKIP not verified if binary not installed) (6132.0158ms)
+  ✔ Real Trivy binary execution against repository fixture (or SKIP not verified if binary not installed) (283.9061ms)
+  ✔ Semgrep and Trivy subprocess runners enforce shell:false, offline flags, timeout failures, and Trivy DB freshness (1449.6853ms)
+  ✔ compareScanReports detects Semgrep rulepack_version drift, stale Trivy DB, and notes db_version drift (2904.3707ms)
+  ✔ WEB-TLS-001 evaluates handshake errors as failed coverage, detects expired/weak/mismatch TLS, and verifies fixes on re-test (2.4802ms)
+  ✔ HTML report escapes XSS payloads in headers/URLs and failed checks produce completed_with_gaps (1.4787ms)
+✔ Sprint C (P1): Real scanner binary probes, source drift re-test, and TLS/HTML boundary matrix (10775.2925ms)
+ℹ tests 6
+ℹ suites 1
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11005.0225

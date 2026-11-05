@@ -1,0 +1,29 @@
+{
+  "expired_grant_with_backdated_now": {
+    "http_status": 200,
+    "allowed": true,
+    "reason": "broker_policy_allow"
+  },
+  "valid_grant_request": {
+    "http_status": 200,
+    "allowed": true
+  },
+  "forwarded_headers_to_target": [
+    "accept",
+    "origin",
+    "referer",
+    "user-agent",
+    "x-custom-trace",
+    "x-internal-admin"
+  ],
+  "forwarded_unapproved_header": [
+    "origin",
+    "referer",
+    "x-internal-admin"
+  ],
+  "transport_followRedirects": "not-provided",
+  "audit_contains_secret_query_value": true,
+  "audit_contains_credential_header_values": false,
+  "audit_sample_target_url": "https://demo.example.test/?token=top-secret-audit-value&code=abcdef&page=2",
+  "audit_chain_valid": true
+}

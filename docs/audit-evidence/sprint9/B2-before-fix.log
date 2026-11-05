@@ -1,0 +1,7 @@
+{
+  "request_allowed": false,
+  "audit_chain_valid": true,
+  "audit_entries": 1,
+  "secret_query_value_persisted_in_audit_log": true,
+  "sample_target_url": "https://demo.example.test/?token=top-secret-audit-value&code=abcdef"
+}

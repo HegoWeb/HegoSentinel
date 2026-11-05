@@ -1,0 +1,360 @@
+======= LINT =======
+
+> hegosentinel@0.1.0-alpha.4 lint
+> node --experimental-strip-types ./scripts/lint-and-typecheck.ts --lint
+
+(node:4977) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[OK] LINT passed: verified 18 TypeScript files, 7 JSON schema/fixture files, and runtime document contracts.
+(node:4977) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+
+======= TYPESCRIPT =======
+
+> hegosentinel@0.1.0-alpha.4 typecheck
+> node ./node_modules/typescript/lib/tsc.js -p tsconfig.json --noEmit && node --experimental-strip-types ./scripts/lint-and-typecheck.ts --typecheck
+
+(node:5007) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5007) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+[OK] TYPECHECK passed: verified 18 TypeScript files, 7 JSON schema/fixture files, and runtime document contracts.
+
+======= TESTS =======
+
+> hegosentinel@0.1.0-alpha.4 test
+> node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/integration/adapters-and-reports.test.ts ./tests/e2e/cli-demo.test.ts ./tests/security/independent-boundary-audit.test.ts ./tests/security/cookie-csp-identity-regression.test.ts
+
+TAP version 13
+# (node:5036) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014)
+    # Subtest: Runs `hegosentinel demo --offline`, generates sanitized reports, and verifies re-test loop without external network calls
+    ok 1 - Runs `hegosentinel demo --offline`, generates sanitized reports, and verifies re-test loop without external network calls
+      ---
+      duration_ms: 18.238155
+      type: 'test'
+      ...
+    1..1
+ok 1 - E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014)
+  ---
+  duration_ms: 19.227086
+  type: 'suite'
+  ...
+# (node:5037) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF)
+    # Subtest: Normalizes offline Semgrep (CODE-001) and Trivy (DEP-001) fixtures and exports valid SARIF 2.1.0
+    ok 1 - Normalizes offline Semgrep (CODE-001) and Trivy (DEP-001) fixtures and exports valid SARIF 2.1.0
+      ---
+      duration_ms: 13.409826
+      type: 'test'
+      ...
+    1..1
+ok 2 - Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF)
+  ---
+  duration_ms: 14.310484
+  type: 'suite'
+  ...
+# (node:5038) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Independent Code Audit Regression Suite (HS-AUDIT-001 .. HS-AUDIT-008)
+    # Subtest: HS-AUDIT-001 (P0): Baseline finding on /old must NEVER become verified_fixed when current scan only tested /different-page
+    ok 1 - HS-AUDIT-001 (P0): Baseline finding on /old must NEVER become verified_fixed when current scan only tested /different-page
+      ---
+      duration_ms: 15.386056
+      type: 'test'
+      ...
+    # Subtest: HS-AUDIT-004 (P1): Changing grant_id or scope_version between baseline and current must mark comparison not_comparable
+    ok 2 - HS-AUDIT-004 (P1): Changing grant_id or scope_version between baseline and current must mark comparison not_comparable
+      ---
+      duration_ms: 1.661615
+      type: 'test'
+      ...
+    # Subtest: HS-AUDIT-002 (P0): Symlink or junction inside approved repository pointing outside allowed_repositories must be denied via realpath
+    ok 3 - HS-AUDIT-002 (P0): Symlink or junction inside approved repository pointing outside allowed_repositories must be denied via realpath
+      ---
+      duration_ms: 1.839022
+      type: 'test'
+      ...
+    # Subtest: HS-AUDIT-007 (P1): CODE-001 and DEP-001 recheck verifies same-repo fixes and blocks cross-repo false verified_fixed
+    ok 4 - HS-AUDIT-007 (P1): CODE-001 and DEP-001 recheck verifies same-repo fixes and blocks cross-repo false verified_fixed
+      ---
+      duration_ms: 5.124715
+      type: 'test'
+      ...
+    # Subtest: NEW-01 (P1): Deep symlink (depth 13+ / 20), unreadable directory, and TOCTOU symlink mutation must fail-closed
+    ok 5 - NEW-01 (P1): Deep symlink (depth 13+ / 20), unreadable directory, and TOCTOU symlink mutation must fail-closed
+      ---
+      duration_ms: 1.925553
+      type: 'test'
+      ...
+    # Subtest: NEW-02 (P1): Invalid or overly permissive CSP must NEVER set positive_validation_passed=true or recheck_state=verified_fixed
+    ok 6 - NEW-02 (P1): Invalid or overly permissive CSP must NEVER set positive_validation_passed=true or recheck_state=verified_fixed
+      ---
+      duration_ms: 2.262281
+      type: 'test'
+      ...
+    # Subtest: NEW-03 (P1/P2): Runtime validator must enforce JSON Schema Draft 2020-12 required fields, minimum bounds, and additionalProperties=false
+    ok 7 - NEW-03 (P1/P2): Runtime validator must enforce JSON Schema Draft 2020-12 required fields, minimum bounds, and additionalProperties=false
+      ---
+      duration_ms: 0.893647
+      type: 'test'
+      ...
+    1..7
+ok 3 - Independent Code Audit Regression Suite (HS-AUDIT-001 .. HS-AUDIT-008)
+  ---
+  duration_ms: 30.202242
+  type: 'suite'
+  ...
+# (node:5069) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Audit: evidence must prove the same cookie was fixed
+    # Subtest: different secure cookie cannot prove remediation of the original vulnerable cookie
+    ok 1 - different secure cookie cannot prove remediation of the original vulnerable cookie
+      ---
+      duration_ms: 47.525458
+      type: 'test'
+      ...
+    # Subtest: the same cookie with all valid attributes can verify remediation
+    ok 2 - the same cookie with all valid attributes can verify remediation
+      ---
+      duration_ms: 6.183102
+      type: 'test'
+      ...
+    # Subtest: unknown SameSite attribute must not be accepted as a secure fix
+    ok 3 - unknown SameSite attribute must not be accepted as a secure fix
+      ---
+      duration_ms: 1.973726
+      type: 'test'
+      ...
+    1..3
+ok 4 - Audit: evidence must prove the same cookie was fixed
+  ---
+  duration_ms: 56.955034
+  type: 'suite'
+  ...
+# Subtest: Audit: conservative CSP remediation evidence
+    # Subtest: duplicate directives must not be marked enforcing (browser uses first directive)
+    ok 1 - duplicate directives must not be marked enforcing (browser uses first directive)
+      ---
+      duration_ms: 0.698663
+      type: 'test'
+      ...
+    # Subtest: a permissive script-src-elem override must not be marked enforcing
+    ok 2 - a permissive script-src-elem override must not be marked enforcing
+      ---
+      duration_ms: 0.234633
+      type: 'test'
+      ...
+    # Subtest: a narrow script policy remains accepted for deterministic demo verification
+    ok 3 - a narrow script policy remains accepted for deterministic demo verification
+      ---
+      duration_ms: 0.276637
+      type: 'test'
+      ...
+    1..3
+ok 5 - Audit: conservative CSP remediation evidence
+  ---
+  duration_ms: 5.773214
+  type: 'suite'
+  ...
+# (node:5070) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Independent alpha.3 boundary audit regressions
+    # Subtest: AUD-2026-01: HTML to JSON or 404 must not verify a CSP fix
+    ok 1 - AUD-2026-01: HTML to JSON or 404 must not verify a CSP fix
+      ---
+      duration_ms: 9.914376
+      type: 'test'
+      ...
+    # Subtest: AUD-2026-02: Symlinks hidden inside node_modules do not bypass the approved repository boundary
+    ok 2 - AUD-2026-02: Symlinks hidden inside node_modules do not bypass the approved repository boundary
+      ---
+      duration_ms: 2.990508
+      type: 'test'
+      ...
+    # Subtest: AUD-2026-05: Caller-supplied egress flags cannot activate an unimplemented remote transport
+    ok 3 - AUD-2026-05: Caller-supplied egress flags cannot activate an unimplemented remote transport
+      ---
+      duration_ms: 0.620686
+      type: 'test'
+      ...
+    # Subtest: AUD-2026-04: An oversized repository scope inspection fails closed within a configured entry budget
+    ok 4 - AUD-2026-04: An oversized repository scope inspection fails closed within a configured entry budget
+      ---
+      duration_ms: 0.498972
+      type: 'test'
+      ...
+    # Subtest: AUD-2026-03: A false_positive decision from a different scope_version is not valid in the current scope
+    ok 5 - AUD-2026-03: A false_positive decision from a different scope_version is not valid in the current scope
+      ---
+      duration_ms: 1.526261
+      type: 'test'
+      ...
+    1..5
+ok 6 - Independent alpha.3 boundary audit regressions
+  ---
+  duration_ms: 16.822521
+  type: 'suite'
+  ...
+# (node:5076) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Release-Blocking Security Acceptance Matrix (SEC-001 .. SEC-014)
+    # Subtest: SEC-001: Missing, expired, outside-window, wildcard, or domain-proof-only permission emits denied with zero requests
+    ok 1 - SEC-001: Missing, expired, outside-window, wildcard, or domain-proof-only permission emits denied with zero requests
+      ---
+      duration_ms: 3.697114
+      type: 'test'
+      ...
+    # Subtest: SEC-002: Private, loopback, link-local, cloud metadata, and IPv6/mapped-IPv6 destinations are denied
+    ok 2 - SEC-002: Private, loopback, link-local, cloud metadata, and IPv6/mapped-IPv6 destinations are denied
+      ---
+      duration_ms: 5.967386
+      type: 'test'
+      ...
+    # Subtest: SEC-003: Redirect to out-of-scope destination or HTTP downgrade is logged and not followed
+    ok 3 - SEC-003: Redirect to out-of-scope destination or HTTP downgrade is logged and not followed
+      ---
+      duration_ms: 2.257614
+      type: 'test'
+      ...
+    # Subtest: SEC-004: DNS rebind between validation and socket connect is rejected
+    ok 4 - SEC-004: DNS rebind between validation and socket connect is rejected
+      ---
+      duration_ms: 0.770912
+      type: 'test'
+      ...
+    # Subtest: SEC-005: Remote scan mode fails closed unless network-layer egress isolation is verified and internal plane is unreachable
+    ok 5 - SEC-005: Remote scan mode fails closed unless network-layer egress isolation is verified and internal plane is unreachable
+      ---
+      duration_ms: 0.322356
+      type: 'test'
+      ...
+    # Subtest: SEC-006: Repository scan blocks forbidden executables (npm/composer/sh) and out-of-scope paths
+    ok 6 - SEC-006: Repository scan blocks forbidden executables (npm/composer/sh) and out-of-scope paths
+      ---
+      duration_ms: 1.525159
+      type: 'test'
+      ...
+    # Subtest: SEC-007: Secrets in headers, cookies, URLs, and tool output never appear in reports
+    ok 7 - SEC-007: Secrets in headers, cookies, URLs, and tool output never appear in reports
+      ---
+      duration_ms: 3.233935
+      type: 'test'
+      ...
+    # Subtest: SEC-008: Missing tool or failed check produces skipped/completed_with_gaps, never complete/clean
+    ok 8 - SEC-008: Missing tool or failed check produces skipped/completed_with_gaps, never complete/clean
+      ---
+      duration_ms: 0.887899
+      type: 'test'
+      ...
+    # Subtest: SEC-009 & SEC-010: Re-test marks mismatched scope/rule-version as not_comparable and enforces scoped false_positive suppression
+    ok 9 - SEC-009 & SEC-010: Re-test marks mismatched scope/rule-version as not_comparable and enforces scoped false_positive suppression
+      ---
+      duration_ms: 1.491589
+      type: 'test'
+      ...
+    1..9
+ok 7 - Release-Blocking Security Acceptance Matrix (SEC-001 .. SEC-014)
+  ---
+  duration_ms: 21.372971
+  type: 'suite'
+  ...
+# (node:5102) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions
+    # Subtest: HSR-04 Negative Fixtures: non-HTML asset, CSP-Report-Only, and public preference cookie do not produce false findings
+    ok 1 - HSR-04 Negative Fixtures: non-HTML asset, CSP-Report-Only, and public preference cookie do not produce false findings
+      ---
+      duration_ms: 7.427627
+      type: 'test'
+      ...
+    # Subtest: S1-03: Validates finding semantics and CVSS v4.0 vector requirement
+    ok 2 - S1-03: Validates finding semantics and CVSS v4.0 vector requirement
+      ---
+      duration_ms: 1.008069
+      type: 'test'
+      ...
+    # Subtest: S1-05: Verifies new, persistent, verified_fixed, and reopened state transitions
+    ok 3 - S1-05: Verifies new, persistent, verified_fixed, and reopened state transitions
+      ---
+      duration_ms: 1.81091
+      type: 'test'
+      ...
+    1..3
+ok 8 - Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions
+  ---
+  duration_ms: 11.03152
+  type: 'suite'
+  ...
+1..8
+# tests 32
+# suites 8
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1244.08015
+
+======= DEMO =======
+
+> hegosentinel@0.1.0-alpha.4 demo
+> node --experimental-strip-types ./packages/scanner-core/src/cli.ts demo --offline
+
+(node:5125) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+=== HegoSentinel Offline Synthetic Demo (Zero External Network Access) ===
+Grant Verified: GRANT-DEMO-2026-0001 (Scope v1) · Target: https://demo.example.test/
+
+[Run 1 — Baseline Scan: SCAN-DEMO-BASELINE-001]
+  Coverage Status: COMPLETE (1/10 requests)
+  Observations: 2 · Informational Notes: 2
+  - HS-0001 [WEB-HEADER-001] Content-Security-Policy header not observed (Priority: medium, Confidence: high, Status: observed)
+  - HS-0002 [WEB-COOKIE-001] Session cookie attributes need review (hegosentinel_session) (Priority: medium, Confidence: medium, Status: needs_review)
+
+[Run 2 — Re-Test After Sample Fixture Change: SCAN-DEMO-PATCHED-002]
+  Comparable: true
+  - [WEB-HEADER-001] Content-Security-Policy header not observed: observed -> VERIFIED_FIXED
+  - [WEB-COOKIE-001] Session cookie attributes need review (hegosentinel_session): needs_review -> PERSISTENT
+
+Generated Sanitized Artifacts:
+  - /mnt/data/hegosentinel_v5_review/HegoSentinel_Project_Documentation/reports/demo-baseline.json
+  - /mnt/data/hegosentinel_v5_review/HegoSentinel_Project_Documentation/reports/demo-baseline.md
+  - /mnt/data/hegosentinel_v5_review/HegoSentinel_Project_Documentation/reports/demo-patched.json
+  - /mnt/data/hegosentinel_v5_review/HegoSentinel_Project_Documentation/reports/demo-recheck.json
+  - /mnt/data/hegosentinel_v5_review/HegoSentinel_Project_Documentation/reports/demo-recheck.md
+  - /mnt/data/hegosentinel_v5_review/HegoSentinel_Project_Documentation/reports/demo-recheck.html
+
+======= REVISED ALPHA.4 VERIFICATION (38/38 PASS) =======
+
+> hegosentinel@0.1.0-alpha.4 lint
+[OK] LINT passed: verified 18 TypeScript files, 7 JSON schema/fixture files, and runtime document contracts.
+
+> hegosentinel@0.1.0-alpha.4 typecheck
+[OK] TYPECHECK passed: verified 18 TypeScript files, 7 JSON schema/fixture files, and runtime document contracts.
+
+> hegosentinel@0.1.0-alpha.4 test
+▶ E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014) (1/1 PASS)
+▶ Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF) (1/1 PASS)
+▶ Independent Code Audit Regression Suite (HS-AUDIT-001 .. HS-AUDIT-008) (7/7 PASS)
+▶ Audit: evidence must prove the same cookie was fixed (5/5 PASS)
+  ✔ different secure cookie cannot prove remediation of the original vulnerable cookie
+  ✔ the same cookie with all valid attributes can verify remediation
+  ✔ unknown SameSite attribute must not be accepted as a secure fix
+  ✔ __Host- cookie prefix with Domain attribute or non-root Path must not verify remediation
+  ✔ duplicate SameSite attributes must not be accepted as a clean cookie remediation
+▶ Audit: conservative CSP remediation evidence (4/4 PASS)
+  ✔ duplicate directives must not be marked enforcing (browser uses first directive)
+  ✔ a permissive script-src-elem override must not be marked enforcing
+  ✔ a permissive script-src-attr override must not be marked enforcing
+  ✔ a narrow script policy remains accepted for deterministic demo verification
+▶ Audit: Local Workbench server hardening (3/3 PASS)
+  ✔ validateLoopbackRequest blocks DNS-rebinding Host headers and cross-origin POST requests
+  ✔ readJsonBody rejects malformed JSON (400) and oversized payloads > 16 KB (413)
+  ✔ serves Workbench HTML/CSS/JS with enforcing CSP free of unsafe-inline
+▶ Independent alpha.3 boundary audit regressions (5/5 PASS)
+▶ Release-Blocking Security Acceptance Matrix (SEC-001 .. SEC-014) (9/9 PASS)
+▶ Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions (3/3 PASS)
+ℹ tests 38 | suites 9 | pass 38 | fail 0 | skipped 0
+
+

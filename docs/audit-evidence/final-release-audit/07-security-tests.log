@@ -1,0 +1,120 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:6 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> hegosentinel@0.1.0-alpha.4 test:security
+> node --experimental-strip-types --test ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/security/independent-boundary-audit.test.ts ./tests/security/cookie-csp-identity-regression.test.ts ./tests/security/worker-containment-and-sprint2.test.ts ./tests/security/broker-b2-regression.test.ts
+
+▶ Independent Code Audit Regression Suite (HS-AUDIT-001 .. HS-AUDIT-008)
+  ✔ HS-AUDIT-001 (P0): Baseline finding on /old must NEVER become verified_fixed when current scan only tested /different-page (27.244ms)
+  ✔ HS-AUDIT-004 (P1): Changing grant_id or scope_version between baseline and current must mark comparison not_comparable (7.0174ms)
+  ✔ HS-AUDIT-002 (P0): Symlink or junction inside approved repository pointing outside allowed_repositories must be denied via realpath (22.6557ms)
+  ✔ HS-AUDIT-007 (P1): CODE-001 and DEP-001 recheck verifies same-repo fixes and blocks cross-repo false verified_fixed (69.7373ms)
+  ✔ NEW-01 (P1): Deep symlink (depth 13+ / 20), unreadable directory, and TOCTOU symlink mutation must fail-closed (3.1222ms)
+  ✔ NEW-02 (P1): Invalid or overly permissive CSP must NEVER set positive_validation_passed=true or recheck_state=verified_fixed (2.8356ms)
+  ✔ NEW-03 (P1/P2): Runtime validator must enforce JSON Schema Draft 2020-12 required fields, minimum bounds, and additionalProperties=false (2.8191ms)
+✔ Independent Code Audit Regression Suite (HS-AUDIT-001 .. HS-AUDIT-008) (138.9773ms)
+▶ Sprint 9 / B2 â€” Trusted Egress Broker evidence minimization (masking happens BEFORE the first log record)
+  ✔ sanitizeUrlForAudit masks token/password/secret/code/api_key/session-like params, userinfo and fragments (8.4049ms)
+  ✔ sanitizeUrlForAudit / sanitizeAuditText neutralize malformed input, secrets in paths and log injection (7.0822ms)
+  ✔ NO secret survives in the audit log on ANY path (deny and allow) and the hash chain stays valid (32.9317ms)
+  ✔ log-injection through request identifiers cannot forge extra fields or lines (1.0192ms)
+✔ Sprint 9 / B2 â€” Trusted Egress Broker evidence minimization (masking happens BEFORE the first log record) (58.4061ms)
+▶ Sprint 9 / B2 â€” outbound header allowlist (worker-supplied headers are never forwarded)
+  ✔ forwards ONLY broker defaults + validated allowlisted headers; drops credentials, cookies, forwarding and arbitrary headers (14.9858ms)
+  ✔ rejects malformed values of allowlisted headers (CRLF injection, oversized, secret-like, bad charset) (4.0318ms)
+✔ Sprint 9 / B2 â€” outbound header allowlist (worker-supplied headers are never forwarded) (19.3767ms)
+▶ Sprint 9 / B2 â€” redirects never carry sensitive data to another origin
+  ✔ transport is told not to follow redirects; the Location returned to the worker has sensitive params masked; single upstream hop (9.7503ms)
+  ✔ relative Location values are masked too, and out-of-scope / metadata redirects are DROPPED with no secret in the log (2.1036ms)
+✔ Sprint 9 / B2 â€” redirects never carry sensitive data to another origin (14.0747ms)
+▶ Sprint 9 / B2 â€” signed grant, nonce, TTL and scope controls are preserved
+  ✔ replay, expiry, wrong scope target, unsigned and unknown-signer grants are all still DROPPED (3.0675ms)
+✔ Sprint 9 / B2 â€” signed grant, nonce, TTL and scope controls are preserved (3.6457ms)
+▶ Sprint 9 / B2 â€” the HTTP daemon never trusts worker-supplied clock, environment or limits
+  ✔ an EXPIRED signed grant cannot be revived by a back-dated worker `now` (original PoC: ALLOW before, DROP now) (4.3772ms)
+  ✔ worker-supplied timeoutMs / maxResponseBytes are clamped; now / env / signal are discarded (0.4645ms)
+  ✔ over HTTP: secret query / credential headers never reach the target or the audit endpoint; control endpoints stay authenticated (2.1144ms)
+✔ Sprint 9 / B2 â€” the HTTP daemon never trusts worker-supplied clock, environment or limits (7.805ms)
+▶ Audit: evidence must prove the same cookie was fixed
+  ✔ different secure cookie cannot prove remediation of the original vulnerable cookie (32.7169ms)
+  ✔ the same cookie with all valid attributes can verify remediation (2.3743ms)
+  ✔ unknown SameSite attribute must not be accepted as a secure fix (1.5767ms)
+  ✔ __Host- cookie prefix with Domain attribute or non-root Path must not verify remediation (1.2671ms)
+  ✔ duplicate SameSite attributes must not be accepted as a clean cookie remediation (1.5318ms)
+✔ Audit: evidence must prove the same cookie was fixed (44.2714ms)
+▶ Audit: conservative CSP remediation evidence
+  ✔ duplicate directives must not be marked enforcing (browser uses first directive) (0.6315ms)
+  ✔ a permissive script-src-elem override must not be marked enforcing (0.472ms)
+  ✔ a permissive script-src-attr override must not be marked enforcing (3.4427ms)
+  ✔ a narrow script policy remains accepted for deterministic demo verification (0.3228ms)
+✔ Audit: conservative CSP remediation evidence (5.5162ms)
+▶ Audit: Local Workbench server hardening
+  ✔ validateLoopbackRequest blocks DNS-rebinding Host headers and cross-origin POST requests (1.8039ms)
+  ✔ readJsonBody rejects malformed JSON (400) and oversized payloads > 16 KB (413) (1.2194ms)
+  ✔ serves Workbench HTML/CSS/JS with enforcing CSP free of unsafe-inline (2.4089ms)
+✔ Audit: Local Workbench server hardening (6.9982ms)
+▶ Independent alpha.3 boundary audit regressions
+  ✔ AUD-2026-01: HTML to JSON or 404 must not verify a CSP fix (24.0535ms)
+  ✔ AUD-2026-02: Symlinks hidden inside node_modules do not bypass the approved repository boundary (9.2969ms)
+  ✔ AUD-2026-05: Caller-supplied egress flags cannot activate an unimplemented remote transport (1.1697ms)
+  ✔ AUD-2026-04: An oversized repository scope inspection fails closed within a configured entry budget (1.4163ms)
+  ✔ AUD-2026-03: A false_positive decision from a different scope_version is not valid in the current scope (3.5555ms)
+✔ Independent alpha.3 boundary audit regressions (41.652ms)
+▶ Release-Blocking Security Acceptance Matrix (SEC-001 .. SEC-014)
+  ✔ SEC-001: Missing, expired, outside-window, wildcard, or domain-proof-only permission emits denied with zero requests (8.2512ms)
+  ✔ SEC-002: Private, loopback, link-local, cloud metadata, and IPv6/mapped-IPv6 destinations are denied (12.7315ms)
+  ✔ SEC-003: Redirect to out-of-scope destination or HTTP downgrade is logged and not followed (4.4018ms)
+  ✔ SEC-004: DNS rebind between validation and socket connect is rejected (1.4305ms)
+  ✔ SEC-005: Remote scan mode fails closed unless network-layer egress isolation is verified and internal plane is unreachable (0.9434ms)
+  ✔ SEC-006: Repository scan blocks forbidden executables (npm/composer/sh) and out-of-scope paths (12.5352ms)
+  ✔ SEC-007: Secrets in headers, cookies, URLs, and tool output never appear in reports (5.8606ms)
+  ✔ SEC-008: Missing tool or failed check produces skipped/completed_with_gaps, never complete/clean (2.0483ms)
+  ✔ SEC-009 & SEC-010: Re-test marks mismatched scope/rule-version as not_comparable and enforces scoped false_positive suppression (12.0747ms)
+  ✔ SEC-011: Multi-tenant boundary and RBAC isolation denies cross-tenant/cross-project reads and unprivileged actions (0.6207ms)
+  ✔ SEC-012: Emergency stop kill-switch aborts active runs, revokes stop tokens, and blocks post-cancel execution (0.4961ms)
+  ✔ SEC-013: External notifications are disabled by default and block public sinks, unverified recipients, non-owners, and unredacted secrets (1.1723ms)
+✔ Release-Blocking Security Acceptance Matrix (SEC-001 .. SEC-014) (65.5673ms)
+▶ Sprint A (P0 â€” G0.5): Offline worker container isolation, WKR-001..WKR-006 & subprocess lifecycle
+  ✔ validates the default unprivileged worker container policy and rejects privileged/socket/writable escapes (2.3462ms)
+  ✔ validates source-offline-manifest.json and builds hardened docker run args while rejecting forbidden mounts/env (1.1155ms)
+  ﹣ WKR-001 (Docker runtime): internet egress blocked inside --network=none container (13.7554ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ﹣ WKR-002 (Docker runtime): cloud metadata 169.254.169.254 and fd00:ec2::254 blocked inside container (7.43ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ﹣ WKR-003 (Docker runtime): writing to read-only rootfs and /workspace/repo:ro fails with EROFS (8.349ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ﹣ WKR-004 (Docker runtime): symlink escape outside /workspace/repo:ro blocked inside container (7.1192ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ﹣ WKR-005 (Docker runtime): container CPU/memory/PID/timeout resource exhaustion killed cleanly (6.6848ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ✔ WKR-005 & WKR-006 (Host subprocess): AbortSignal cancellation sends SIGTERM/SIGKILL and records tool_status=killed / timed_out / not_installed (7953.1168ms)
+✔ Sprint A (P0 â€” G0.5): Offline worker container isolation, WKR-001..WKR-006 & subprocess lifecycle (8002.396ms)
+▶ Sprint B (P0 â€” G0.6): SignedRemoteExecutionGrant, NonceReplayRegistry & Egress Bypass Negative Matrix
+  ✔ generates per-run network policy and demonstrates zero prohibited outbound connections in simulated netns firewall logs (7.294ms)
+  ✔ enforces SignedRemoteExecutionGrant bindings and blocks replay, stale TTL (>300s), grant substitution, untrusted signer, and proxy env escape (1.0432ms)
+  ✔ rejects caller-supplied booleans and forged/expired worker capability attestations (1.0348ms)
+  ✔ executeBoundedPassiveRequest enforces GET/HEAD limits, body size cap, kill-switch cancellation, and redirect/rebind guards (1.67ms)
+  ✔ Out-of-worker TrustedEgressBroker enforces deny-by-default policy, SignedRemoteExecutionGrant, SSRF/rebind/redirect drops, header stripping, and hash-chained audit logs (EGR-001..EGR-006) (4.1893ms)
+✔ Sprint B (P0 â€” G0.6): SignedRemoteExecutionGrant, NonceReplayRegistry & Egress Bypass Negative Matrix (15.6198ms)
+▶ Sprint C (P1): Real scanner binary probes, source drift re-test, and TLS/HTML boundary matrix
+  ﹣ Real Semgrep binary execution against repository fixture (or SKIP not verified if binary not installed) (568.163ms) # SKIP (not verified): semgrep binary not installed on host (semgrep binary not installed in PATH (2))
+  ✔ Real Trivy binary execution against repository fixture (or SKIP not verified if binary not installed) (610.6642ms)
+  ✔ Semgrep and Trivy subprocess runners enforce shell:false, offline flags, timeout failures, and Trivy DB freshness (11526.9583ms)
+  ✔ compareScanReports detects Semgrep rulepack_version drift, stale Trivy DB, and notes db_version drift (23054.3413ms)
+  ✔ WEB-TLS-001 evaluates handshake errors as failed coverage, detects expired/weak/mismatch TLS, and verifies fixes on re-test (1.5772ms)
+  ✔ HTML report escapes XSS payloads in headers/URLs and failed checks produce completed_with_gaps (1.3865ms)
+✔ Sprint C (P1): Real scanner binary probes, source drift re-test, and TLS/HTML boundary matrix (35763.5131ms)
+▶ Sprint 7: Docker outcome analysis, Synthetic Laravel/Next.js/Node.js targets, Egress Broker HTTP Server, Production Hardening & Release Gate
+  ✔ analyzeDockerRunOutcome never mistakes Docker CLI / missing-image errors (125/126/127) for security success (0.4523ms)
+  ✔ normalizes synthetic Laravel, Next.js, and Node.js source vulnerabilities, dependency CVEs, and misconfigurations (58.7825ms)
+  ✔ runs out-of-process createTrustedEgressBrokerServer over HTTP and enforces EGR-001..006 & control-plane auth (3.706ms)
+  ✔ enforces Production Security: report tenant isolation, TamperEvidentAuditLog, extended secret scrubbing, safe output paths, and release gate blocker (3.7438ms)
+✔ Sprint 7: Docker outcome analysis, Synthetic Laravel/Next.js/Node.js targets, Egress Broker HTTP Server, Production Hardening & Release Gate (66.9554ms)
+ℹ tests 71
+ℹ suites 15
+ℹ pass 65
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 6
+ℹ todo 0
+ℹ duration_ms 44476.2689

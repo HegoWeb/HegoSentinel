@@ -1,0 +1,17 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 test:unit
+> node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts
+
+ÔûÂ Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions
+  Ô£ö HSR-04 Negative Fixtures: non-HTML asset, CSP-Report-Only, and public preference cookie do not produce false findings (11.7339ms)
+  Ô£ö S1-03: Validates finding semantics and CVSS v4.0 vector requirement (1.6246ms)
+  Ô£ö S1-05: Verifies new, persistent, verified_fixed, and reopened state transitions (2.4089ms)
+Ô£ö Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions (16.7876ms)
+Ôä╣ tests 3
+Ôä╣ suites 1
+Ôä╣ pass 3
+Ôä╣ fail 0
+Ôä╣ cancelled 0
+Ôä╣ skipped 0
+Ôä╣ todo 0
+Ôä╣ duration_ms 204.6534

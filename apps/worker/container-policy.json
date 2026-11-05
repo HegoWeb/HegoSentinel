@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "workload_name": "hegosentinel-scanner-worker",
+  "separated_from_api_container": true,
+  "user": "65532:65532",
+  "privileged": false,
+  "host_docker_socket_mounted": false,
+  "read_only_root_filesystem": true,
+  "no_new_privileges": true,
+  "cap_drop": ["ALL"],
+  "cap_add": [],
+  "seccomp_profile": "seccomp-profile.json",
+  "default_network_mode": "none",
+  "limits": {
+    "max_cpu_cores": 1.0,
+    "max_memory_bytes": 536870912,
+    "max_pids": 64,
+    "max_run_time_seconds": 60,
+    "max_open_files": 1024
+  },
+  "mounts": [
+    {
+      "target": "/workspace/target-repo",
+      "type": "bind",
+      "read_only": true,
+      "options": ["ro", "nosuid", "nodev", "noexec"]
+    },
+    {
+      "target": "/tmp",
+      "type": "tmpfs",
+      "read_only": false,
+      "max_size_bytes": 67108864,
+      "options": ["rw", "nosuid", "nodev", "noexec"]
+    }
+  ]
+}
+

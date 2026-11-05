@@ -1,0 +1,116 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:6 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> hegosentinel@0.1.0-alpha.4 test:api
+> php apps/api/tests/run-api-tests.php && php apps/api/tests/run-security-regression-tests.php
+
+========================================================================
+HegoSentinel Laravel API (apps/api) — 14-Module & SEC-011..013 Test Suite
+========================================================================
+  [PASS] GET /api/v1/health returns 200 OK and pinned scanner versions
+  [PASS] Initial SHA-256 audit log hash chain is valid
+  [PASS] Module 1: Rejects invalid credentials with 401 Unauthorized
+  [PASS] Module 1: Owner login issues session token
+  [PASS] Module 1: Password reset token issuance works safely
+  [PASS] Module 2: Lists organization members and verified notification domains
+  [PASS] Module 3 (SEC-011): Viewer role cannot invite or modify organization members
+  [PASS] Module 2 & 3: Owner can invite and configure team member RBAC
+  [PASS] Module 4 & 5 (SEC-002): Blocks cloud metadata IP 169.254.169.254 target creation
+  [PASS] Module 4 & 5 (SEC-001): Blocks wildcard hostname *.example.test in target scope
+  [PASS] Module 4 & 5: Creates authorized project, target asset, and ScopeAuthorizationGrant v1
+  [PASS] Module 5 (SEC-001): Rejects scope grant when written_permission_ref equals domain_control_proof
+  [PASS] Module 6: restricted-remote mode is fail-closed (BLOCKED) until independent network isolation is enabled
+  [PASS] Module 3 & 6 (SEC-011): Viewer role is blocked from triggering scans
+  [PASS] Module 6 & 7: Executes baseline authorized scan and records coverage matrix + findings
+  [PASS] SEC-011: Cross-organization user is blocked from reading tenant scan report
+  [PASS] SEC-011: Developer cannot access unassigned project within same organization
+  [PASS] Module 8: Lists normalized findings with evidence hashes and OWASP/CWE references
+  [PASS] Module 8 (SEC-010 / SEC-011): Developer cannot approve false_positive suppressions
+  [PASS] Module 8 (SEC-010): Security Lead creates scoped false_positive suppression
+  [PASS] Module 9: Lists remediation tasks with framework code patch guidance
+  [PASS] Module 9: Developer updates remediation task status to ready_for_retest
+  [PASS] Module 10: Side-by-side re-test comparison verifies fixed findings and scoped suppressions
+  [PASS] Module 11: Safe report export succeeds for format JSON
+  [PASS] Module 11: Safe report export succeeds for format MD
+  [PASS] Module 11: Safe report export succeeds for format HTML
+  [PASS] Module 11: Safe report export succeeds for format SARIF
+  [PASS] Module 11: Safe report export succeeds for format PDF
+  [PASS] Module 12 (SEC-013): Blocks public webhook sink hooks.slack.com
+  [PASS] Module 12 (SEC-013): Blocks notification to unverified recipient domain
+  [PASS] Module 12 (SEC-013): Blocks notification containing unredacted Bearer secret token
+  [PASS] Module 12 (SEC-013): Blocks developer role from approving outbound notifications
+  [PASS] Module 12 (SEC-013): Dispatches approved notification to verified domain
+  [PASS] Module 14 (SEC-012 / SEC-011): Developer role cannot trigger emergency stop
+  [PASS] Module 14 (SEC-012): Owner triggers emergency stop and terminates scan job
+  [PASS] Module 13: Tamper-evident SHA-256 audit log chain verified (34 entries)
+------------------------------------------------------------------------
+API Test Summary: 36 passed, 0 failed
+========================================================================
+========================================================================
+HegoSentinel API — Sprint 9 Security Regression Suite (B1 + re-audit)
+========================================================================
+
+[A] PRODUCTION mode (APP_ENV=production, demo flag forced ON must be ignored)
+  [PASS] A1: production database is NOT seeded with demo tenants/users even when HEGOSENTINEL_DEMO_MODE=1
+  [PASS] A2: known demo credentials do not exist in production
+  [PASS] A3: header X-Demo-Principal: usr-owner-01 never establishes identity (production)
+  [PASS] A3: header x-demo-principal: usr-owner-01 never establishes identity (production)
+  [PASS] A3: header X-DEMO-PRINCIPAL: usr-owner-01 never establishes identity (production)
+  [PASS] A4 (positive control): legitimate registration + Bearer session works in production
+  [PASS] A5 (positive control): valid Bearer token authenticates
+  [PASS] A6: forged Bearer token is rejected
+  [PASS] A7: a valid session plus X-Demo-Principal still resolves ONLY the session owner (header ignored)
+
+[B] TEST mode (APP_ENV=testing, no demo flag)
+  [PASS] B1: no demo flag => no seeded users
+  [PASS] B2: X-Demo-Principal rejected in test mode
+
+[C] DEVELOPMENT/DEMO mode (APP_ENV=local, HEGOSENTINEL_DEMO_MODE=1)
+  [PASS] C0: demo mode seeds demo tenants (explicit operator opt-in)
+  [PASS] C1: every one of 23 routes returns 401 without a real session (no header/forged-token bypass, unknown route not disclosed)
+  [PASS] C2: original PoC (owner/beta-owner impersonation, project list, audit log) now returns 401 x4
+  [PASS] C3 (positive control): all five demo personas can really log in with password
+  [PASS] C4: org A has a scan and findings to test cross-tenant access against
+  [PASS] C5: Beta tenant owner is denied (403/404) on all 9 org-A object endpoints (BOLA/IDOR)
+  [PASS] C6: no org-A identifier appears in ANY list endpoint response of the Beta tenant
+  [PASS] C7: viewer (read-only) can NOT run Re-Test (it mutates remediation state)
+  [PASS] C8: viewer can NOT read the organization audit trail
+  [PASS] C9: developer can NOT read the organization audit trail
+  [PASS] C10 (positive control): security_lead and owner can read the audit trail
+  [PASS] C11: viewer dashboard exposes no audit entries
+  [PASS] C12: developer can NOT hand-close a task as verified_closed (only a verified Re-Test may)
+  [PASS] C13: not even the owner can hand-close a task as verified_closed
+  [PASS] C14: notification/emergency-stop lists are filtered to the viewer's assigned projects
+  [PASS] C14a: owner can scan the second project (positive control)
+  [PASS] C14b: Re-Test between scans of DIFFERENT projects is rejected (no cross-project verified_fixed)
+  [PASS] C14c (positive control): developer can run a same-project Re-Test
+  [PASS] C14d (positive control): developer assigned to proj-nextjs-portal can re-test it
+  [PASS] C14e: viewer not assigned to proj-nextjs-portal cannot read its scan (project-level isolation)
+  [PASS] C15: register ignores client organization_id — attacker gets a NEW org, not org-hegoweb-sec
+  [PASS] C16: self-registered attacker sees no org-A project and is denied org-A scans
+  [PASS] C17: no membership row was created in org-hegoweb-sec for the attacker
+  [PASS] C18: inviting a NEW member without an explicit initial password is rejected (no built-in default password)
+  [PASS] C19: no default-password account was created
+  [PASS] C20: allowed_project_ids cannot reference another organization's project
+  [PASS] C21: createProject rejects 8 path-traversal / absolute / UNC / NUL repository_path payloads with 422
+  [PASS] C22: rejected traversal attempts left NO orphan project rows
+  [PASS] C23: scanning a repo path outside the workspace (apps/api) is rejected
+  [PASS] C24: a project cannot scan another project's repository (not a registered asset of this project)
+  [PASS] C25: a request cannot WIDEN scope to the parent workspace directory
+  [PASS] C26: denied path attempts created no dangling queue jobs
+  [PASS] C27 (positive control): owner triggers project-wide emergency stop
+  [PASS] C28: a new scan right after a project-wide stop is DENIED without any client flag (honor_project_stop opt-in removed)
+  [PASS] C29: emergency stop for a non-existent project id is rejected (404)
+  [PASS] C30: developer still cannot trigger emergency stop
+  [PASS] C31: 5 failed logins lock the account for 15 min — even the CORRECT password is then refused with 429
+  [PASS] C32 (positive control): throttling is per-account; other accounts are unaffected
+  [PASS] C33: error responses do not leak stack traces or file paths
+
+========================================================================
+Sprint 9 Security Regression Summary: 50 passed, 0 failed
+========================================================================

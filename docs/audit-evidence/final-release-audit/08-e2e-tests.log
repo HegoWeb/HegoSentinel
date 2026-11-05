@@ -1,0 +1,34 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:6 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> hegosentinel@0.1.0-alpha.4 test:e2e
+> node --experimental-strip-types --test ./tests/e2e/cli-demo.test.ts ./tests/e2e/web-api-platform.test.ts
+
+▶ E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014)
+  ✔ Runs `hegosentinel demo --offline`, generates sanitized reports, and verifies re-test loop without external network calls (34.6617ms)
+✔ E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014) (35.6992ms)
+▶ Sprint 8 â€” Full Web Platform (apps/web) & Laravel API (apps/api) E2E Suite
+  ✔ renders all 9 platform screens, bilingual TR/EN dictionaries, and dark obsidian design tokens (3.0304ms)
+  ✔ serves /, /robots.txt, /sitemap.xml, and /llms.txt with hardened security headers (2.7435ms)
+  ✔ passes all 36 Laravel API (apps/api) 14-module & SEC-011/012/013 integration assertions (5956.4166ms)
+  ✔ Sprint 9 B1: API security regression suite (production/dev/test modes, BOLA, RBAC, traversal, throttle) has 0 failures (6125.5613ms)
+✔ Sprint 8 â€” Full Web Platform (apps/web) & Laravel API (apps/api) E2E Suite (12089.4959ms)
+▶ Sprint 9 B1 — web platform never carries or forwards client-controlled identity
+  ✔ isDemoModeEnabled is operator-environment only and hard-off in production (0.2919ms)
+  ✔ default (production-safe) HTML contains no demo credentials, no demo personas and no X-Demo-Principal (0.8823ms)
+  ✔ demo HTML (explicit demoMode:true) prefills demo credentials but still never sends X-Demo-Principal (0.5536ms)
+  ✔ the /api/v1 proxy drops X-Demo-Principal, forwards only Authorization, and rejects dot-segment escapes and oversized bodies (3.1797ms)
+✔ Sprint 9 B1 — web platform never carries or forwards client-controlled identity (5.2517ms)
+ℹ tests 9
+ℹ suites 3
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12330.3939

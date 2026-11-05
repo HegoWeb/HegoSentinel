@@ -1,0 +1,5 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 verify:gates
+> node --experimental-strip-types ./scripts/verify-all-security-gates.ts
+
+[OK] All Security Gates Verification complete: 26 PASS, 6 SKIP (not verified), 0 FAIL

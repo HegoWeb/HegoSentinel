@@ -1,0 +1,258 @@
+name: HegoSentinel CI & Sprint 7 Real Security Verification Gates
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  PINNED_SEMGREP_VERSION: "1.183.0"
+  PINNED_TRIVY_VERSION: "0.76.1"
+
+jobs:
+  unit-integration-security-e2e:
+    name: Unit, Integration, Security Matrix (SEC-001..014) & E2E Tests
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22.16.0', '24.x']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install toolchain dependencies (TypeScript compiler)
+        run: npm ci --ignore-scripts
+
+      - name: Static Policy & Security Lint
+        run: npm run lint
+
+      - name: Real TypeScript Compiler (tsc --noEmit) & Runtime Schema Typecheck
+        run: npm run typecheck
+
+      - name: Verify Relative Markdown Links
+        run: npm run docs:links
+
+      - name: Setup PHP 8.3 (CLI + pdo_sqlite) for Platform API & Sprint 9 B1 Regression Suite
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_sqlite, openssl, json
+          coverage: none
+
+      - name: Run PHP Platform API (14-Module) & Sprint 9 B1 Security Regression Tests
+        run: npm run test:api
+
+      - name: Run Unit, Integration, Security & E2E Test Suites
+        run: |
+          npm run test:unit
+          npm run test:integration
+          npm run test:security
+          npm run test:e2e
+
+      - name: Execute Offline Synthetic Demo & Assert Zero Secret Leakage (SEC-007 / SEC-014)
+        run: |
+          npm run demo
+          npm run verify:gates
+          if grep -rn "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c" ./reports/; then
+            echo "CRITICAL: Planted JWT secret leaked into generated reports!"
+            exit 1
+          fi
+
+      - name: Upload Test & Gate Reports Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-and-gate-reports-node-${{ matrix.node-version }}
+          path: |
+            reports/demo-baseline.json
+            reports/demo-patched.json
+            reports/demo-recheck.json
+            reports/demo-recheck.md
+            reports/demo-recheck.html
+            reports/security-gates-verification.json
+            reports/security-gates-verification.md
+
+  docker-worker-containment:
+    name: Real Docker Worker Containment Verification (WKR-001..005)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22.16.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build Worker Image & Verify Real Container Isolation (WKR-001..005)
+        run: bash ./scripts/linux-docker-verify.sh
+
+      - name: Upload Docker Containment Evidence Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-docker-evidence
+          path: reports/linux-docker-evidence.json
+
+  real-scanners-semgrep-trivy:
+    name: Real Pinned Semgrep CE (1.183.0) & Trivy (0.76.1) Verification (CODE-001 & DEP-001)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22.16.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Pinned Semgrep CE (${{ env.PINNED_SEMGREP_VERSION }}) & Trivy (${{ env.PINNED_TRIVY_VERSION }})
+        run: |
+          python3 -m pip install --break-system-packages --no-cache-dir "semgrep==${PINNED_SEMGREP_VERSION}"
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${PINNED_TRIVY_VERSION}/trivy_${PINNED_TRIVY_VERSION}_Linux-64bit.tar.gz" | sudo tar -xz -C /usr/local/bin trivy
+          semgrep --version
+          trivy --version
+          trivy image --download-db-only
+
+      - name: Verify Real Semgrep & Trivy Execution on Synthetic Laravel, Next.js & Node.js Targets
+        run: bash ./scripts/linux-scanner-verify.sh
+
+      - name: Upload Real Scanner Evidence Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-scanner-evidence
+          path: reports/real-scanner-evidence.json
+
+  real-egress-broker-isolation:
+    name: Real Linux Network Isolation & Trusted Egress Broker Verification (EGR-001..006)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22.16.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build Worker Image & Verify Isolated Network + Trusted Egress Broker (EGR-001..006)
+        run: |
+          docker build -t hegosentinel-worker:0.1.0-alpha.4 -f ./apps/worker/Dockerfile .
+          bash ./scripts/linux-netns-egress-verify.sh
+
+      - name: Upload Linux Egress Isolation Evidence Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-egress-isolation-evidence
+          path: reports/linux-egress-isolation-evidence.json
+
+  secret-and-dependency-security:
+    name: Secret Scanning (Gitleaks + Trivy Secret) & Dependency Security Audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22.16.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Install dependencies & Run npm audit
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
+
+      - name: Install Gitleaks & Trivy (${{ env.PINNED_TRIVY_VERSION }}) and Scan Repository for Secrets
+        run: |
+          curl -sfL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" | sudo tar -xz -C /usr/local/bin gitleaks
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${PINNED_TRIVY_VERSION}/trivy_${PINNED_TRIVY_VERSION}_Linux-64bit.tar.gz" | sudo tar -xz -C /usr/local/bin trivy
+          mkdir -p reports
+          gitleaks version
+          cat > /tmp/gitleaks-ci.toml << 'EOF'
+          [extend]
+          useDefault = true
+          [allowlist]
+          description = "Synthetic security redaction test fixtures only"
+          paths = [
+            '''^examples/''',
+            '''^tests/''',
+            '''^apps/api/tests/''',
+            '''^docs/audit-evidence/'''
+          ]
+          EOF
+          gitleaks git . --config /tmp/gitleaks-ci.toml --no-banner --redact --report-format json --report-path reports/gitleaks-git-secrets.json
+          trivy fs --scanners secret --skip-dirs ".tools,examples,tests,apps/api/tests,docs/audit-evidence" --exit-code 1 --format json --output reports/trivy-repo-secrets.json .
+
+      - name: Upload Secret & Dependency Audit Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: secret-and-dependency-audit
+          path: |
+            reports/gitleaks-git-secrets.json
+            reports/trivy-repo-secrets.json
+
+  production-release-gate:
+    name: Production Release Gate Enforcement (Zero FAIL & Zero SKIP Required)
+    runs-on: ubuntu-24.04
+    needs:
+      - unit-integration-security-e2e
+      - docker-worker-containment
+      - real-scanners-semgrep-trivy
+      - real-egress-broker-isolation
+      - secret-and-dependency-security
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22.16.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Install dependencies & Pinned Scanners
+        run: |
+          npm ci --ignore-scripts
+          python3 -m pip install --break-system-packages --no-cache-dir "semgrep==${PINNED_SEMGREP_VERSION}"
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${PINNED_TRIVY_VERSION}/trivy_${PINNED_TRIVY_VERSION}_Linux-64bit.tar.gz" | sudo tar -xz -C /usr/local/bin trivy
+          trivy image --download-db-only
+
+      - name: Download Verification Evidence Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./reports
+          merge-multiple: true
+
+      - name: Enforce Zero FAIL & Zero SKIP Production Release Gate
+        run: |
+          npm run verify:gates
+          npm run verify:release-gate -- --enforce-production-release
+
+      - name: Upload Final Unified Release Gate Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-release-gate-verification
+          path: |
+            reports/security-gates-verification.json
+            reports/security-gates-verification.md
+            reports/linux-docker-evidence.json
+            reports/real-scanner-evidence.json
+            reports/linux-egress-isolation-evidence.json

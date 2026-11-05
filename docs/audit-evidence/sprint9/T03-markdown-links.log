@@ -1,0 +1,5 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 docs:links
+> node --experimental-strip-types ./scripts/check-markdown-links.ts
+
+[OK] All 50 relative Markdown links resolve.

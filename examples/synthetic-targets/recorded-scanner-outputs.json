@@ -1,0 +1,188 @@
+{
+  "pinned_versions": {
+    "semgrep": "1.183.0",
+    "semgrep_ruleset": "hegosentinel-local-ruleset@1.2.0",
+    "trivy": "0.76.1",
+    "trivy_db_updated_at": "2026-11-04T12:00:00Z",
+    "trivy_db_next_update": "2026-11-06T12:00:00Z"
+  },
+  "laravel": {
+    "semgrep": {
+      "version": "1.183.0",
+      "results": [
+        {
+          "check_id": "hegosentinel.laravel.raw-sql-injection",
+          "path": "examples/synthetic-targets/laravel-app/app/Http/Controllers/OrderLookupController.php",
+          "start": { "line": 14, "col": 18 },
+          "extra": {
+            "message": "Unparameterized string concatenation inside DB::raw() can allow SQL injection.",
+            "severity": "ERROR",
+            "metadata": { "cwe": "CWE-89", "confidence": "HIGH" }
+          }
+        },
+        {
+          "check_id": "hegosentinel.laravel.debug-enabled-misconfig",
+          "path": "examples/synthetic-targets/laravel-app/config/app.php",
+          "start": { "line": 7, "col": 5 },
+          "extra": {
+            "message": "Hardcoded 'debug' => true in Laravel config exposes stack traces in production.",
+            "severity": "WARNING",
+            "metadata": { "cwe": "CWE-489", "confidence": "HIGH" }
+          }
+        }
+      ],
+      "errors": []
+    },
+    "trivy": {
+      "SchemaVersion": 2,
+      "Metadata": {
+        "Version": "0.76.1",
+        "UpdatedAt": "2026-11-04T12:00:00Z",
+        "NextUpdate": "2026-11-06T12:00:00Z"
+      },
+      "Results": [
+        {
+          "Target": "examples/synthetic-targets/laravel-app/composer.lock",
+          "Type": "composer",
+          "Vulnerabilities": [
+            {
+              "VulnerabilityID": "CVE-2022-31090",
+              "PkgName": "guzzlehttp/guzzle",
+              "InstalledVersion": "7.4.0",
+              "FixedVersion": "7.4.5",
+              "Severity": "HIGH",
+              "Title": "Guzzle Authorization header forwarding on cross-origin redirect",
+              "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2022-31090"
+            }
+          ],
+          "Misconfigurations": [
+            {
+              "ID": "HS-MISCONF-LARAVEL-DEBUG",
+              "Title": "Laravel production APP_DEBUG enabled",
+              "Message": "config/app.php enables debug mode in production configuration",
+              "Resolution": "Set 'debug' => (bool) env('APP_DEBUG', false) and ensure APP_DEBUG=false in production",
+              "Severity": "MEDIUM",
+              "Status": "FAIL"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "nextjs": {
+    "semgrep": {
+      "version": "1.183.0",
+      "results": [
+        {
+          "check_id": "hegosentinel.nextjs.public-env-secret-exposure",
+          "path": "examples/synthetic-targets/nextjs-app/app/preview/page.tsx",
+          "start": { "line": 3, "col": 29 },
+          "extra": {
+            "message": "Exposing internal secret via NEXT_PUBLIC_ environment variable bundles it into client JavaScript.",
+            "severity": "ERROR",
+            "metadata": { "cwe": "CWE-200", "confidence": "HIGH" }
+          }
+        },
+        {
+          "check_id": "hegosentinel.nextjs.dangerously-set-inner-html",
+          "path": "examples/synthetic-targets/nextjs-app/app/preview/page.tsx",
+          "start": { "line": 6, "col": 12 },
+          "extra": {
+            "message": "Unvalidated HTML passed to dangerouslySetInnerHTML creates a DOM XSS sink.",
+            "severity": "ERROR",
+            "metadata": { "cwe": "CWE-79", "confidence": "HIGH" }
+          }
+        }
+      ],
+      "errors": []
+    },
+    "trivy": {
+      "SchemaVersion": 2,
+      "Metadata": {
+        "Version": "0.76.1",
+        "UpdatedAt": "2026-11-04T12:00:00Z",
+        "NextUpdate": "2026-11-06T12:00:00Z"
+      },
+      "Results": [
+        {
+          "Target": "examples/synthetic-targets/nextjs-app/package-lock.json",
+          "Type": "npm",
+          "Vulnerabilities": [
+            {
+              "VulnerabilityID": "CVE-2024-34351",
+              "PkgName": "next",
+              "InstalledVersion": "14.1.0",
+              "FixedVersion": "14.1.1",
+              "Severity": "HIGH",
+              "Title": "Next.js Server-Side Request Forgery in Server Actions redirect",
+              "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2024-34351"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "nodejs": {
+    "semgrep": {
+      "version": "1.183.0",
+      "results": [
+        {
+          "check_id": "hegosentinel.nodejs.child-process-exec",
+          "path": "examples/synthetic-targets/nodejs-app/src/diagnostic-runner.js",
+          "start": { "line": 6, "col": 3 },
+          "extra": {
+            "message": "Dynamic string concatenation in child_process.exec() enables OS command injection.",
+            "severity": "ERROR",
+            "metadata": { "cwe": "CWE-78", "confidence": "HIGH" }
+          }
+        },
+        {
+          "check_id": "hegosentinel.nodejs.tls-verify-disabled",
+          "path": "examples/synthetic-targets/nodejs-app/src/diagnostic-runner.js",
+          "start": { "line": 11, "col": 5 },
+          "extra": {
+            "message": "Disabling TLS certificate validation (rejectUnauthorized: false) allows MITM interception.",
+            "severity": "WARNING",
+            "metadata": { "cwe": "CWE-295", "confidence": "HIGH" }
+          }
+        }
+      ],
+      "errors": []
+    },
+    "trivy": {
+      "SchemaVersion": 2,
+      "Metadata": {
+        "Version": "0.76.1",
+        "UpdatedAt": "2026-11-04T12:00:00Z",
+        "NextUpdate": "2026-11-06T12:00:00Z"
+      },
+      "Results": [
+        {
+          "Target": "examples/synthetic-targets/nodejs-app/package-lock.json",
+          "Type": "npm",
+          "Vulnerabilities": [
+            {
+              "VulnerabilityID": "CVE-2022-25883",
+              "PkgName": "semver",
+              "InstalledVersion": "7.3.5",
+              "FixedVersion": "7.5.2",
+              "Severity": "MEDIUM",
+              "Title": "Regular Expression Denial of Service in semver",
+              "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2022-25883"
+            },
+            {
+              "VulnerabilityID": "CVE-2024-37890",
+              "PkgName": "ws",
+              "InstalledVersion": "8.4.0",
+              "FixedVersion": "8.17.1",
+              "Severity": "HIGH",
+              "Title": "ws Denial of Service when handling requests with many HTTP headers",
+              "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2024-37890"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+

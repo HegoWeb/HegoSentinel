@@ -1,0 +1,10 @@
+{
+  "name": "hegosentinel-synthetic-nodejs-target",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "semver": "7.3.5",
+    "ws": "8.4.0"
+  }
+}
+

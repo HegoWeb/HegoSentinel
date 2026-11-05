@@ -1,0 +1,33 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:5 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+docker : The term 'docker' is not recognized as the name of a cmdlet, function, script file, or operable program. Check
+ the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:17
++ git remote -v ; docker --version ; .\.tools\semgrep\semgrep.exe --ver ...
++                 ~~~~~~
+    + CategoryInfo          : ObjectNotFound: (docker:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+.\.tools\semgrep\semgrep.exe : The term '.\.tools\semgrep\semgrep.exe' is not recognized as the name of a cmdlet, funct
+ion, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path 
+is correct and try again.
+At line:1 char:36
++ ... t remote -v ; docker --version ; .\.tools\semgrep\semgrep.exe --versi ...
++                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (.\.tools\semgrep\semgrep.exe:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+.\.tools\trivy\trivy.exe : The term '.\.tools\trivy\trivy.exe' is not recognized as the name of a cmdlet, function, scr
+ipt file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is corre
+ct and try again.
+At line:1 char:77
++ ... ools\semgrep\semgrep.exe --version ; .\.tools\trivy\trivy.exe --versi ...
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (.\.tools\trivy\trivy.exe:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 

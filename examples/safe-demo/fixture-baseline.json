@@ -1,0 +1,20 @@
+{
+  "fixture_id": "FIXTURE-DEMO-BASELINE-01",
+  "description": "Synthetic baseline fixture producing 2 security observations (HS-0001 missing CSP, HS-0002 session cookie attributes) and 1 informational note, while planting sensitive cookie values to verify collection minimization.",
+  "endpoints": [
+    {
+      "url": "https://demo.example.test/",
+      "method": "GET",
+      "status_code": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        "Set-Cookie": [
+          "hegosentinel_session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c; Path=/",
+          "theme=dark; Path=/; Secure; SameSite=Lax"
+        ]
+      }
+    }
+  ]
+}
+

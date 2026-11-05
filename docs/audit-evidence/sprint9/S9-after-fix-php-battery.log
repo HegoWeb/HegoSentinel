@@ -1,0 +1,51 @@
+{
+    "root_label": "HegoSentinel_Project_Documentation",
+    "checks": {
+        "S9-01 X-Demo-Principal impersonation (HTTP 200 = exposed)": {
+            "exposed": false,
+            "status": 401
+        },
+        "S9-02 register joins foreign org as owner (sees victim projects)": {
+            "exposed": false,
+            "victim_projects_visible": 0,
+            "org": "org-52e6976f01a1",
+            "role": "owner"
+        },
+        "S9-03 invited user has built-in default password": {
+            "exposed": false,
+            "invite_status": 422
+        },
+        "S9-04 no brute-force lockout": {
+            "exposed": false
+        },
+        "S9-05 read-only viewer can run Re-Test (mutates tasks)": {
+            "exposed": false,
+            "status": 403
+        },
+        "S9-06 viewer can read org audit trail": {
+            "exposed": false,
+            "status": 403
+        },
+        "S9-07 developer hand-closes a task as verified_closed": {
+            "exposed": false,
+            "status": 422
+        },
+        "S9-08 cross-tenant denial writes victim org/project ids into attacker audit log": {
+            "exposed": false
+        },
+        "S9-09 createProject accepts ../ repository_path": {
+            "exposed": false,
+            "status": 422
+        },
+        "S9-10 scan of an arbitrary workspace directory (not a project asset)": {
+            "exposed": false,
+            "status": 422
+        },
+        "S9-11 new scan runs right after a project-wide emergency stop": {
+            "exposed": false,
+            "status": 403
+        }
+    },
+    "exposed_count": 0,
+    "total": 11
+}

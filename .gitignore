@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# HegoSentinel — repository hygiene (Sprint 9)
+# Rule of thumb: nothing secret, generated, huge, or customer-owned is committed.
+# Templates (.env.example) and synthetic fixtures (examples/**) stay tracked.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dependencies & local toolchains (several GB: Semgrep venv, Trivy binary/cache, uv cache)
+node_modules/
+.tools/
+.venv/
+apps/api/vendor/
+
+# Nested duplicate copies and archives are read-only history, never a source of truth
+/HegoSentinel/
+*.zip
+*.tar
+*.tgz
+*.7z
+*.rar
+*.bundle
+
+# Secrets and local configuration (only the *.example template is tracked)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+secrets/
+credentials*.json
+service-account*.json
+
+# Customer data and real scan output must never be committed
+reports/
+customer-reports/
+client-data/
+
+# Local databases, caches and scratch files
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+apps/api/database/*.sqlite*
+coverage/
+.cache/
+tmp/
+*.tmp
+.tmp-*
+.playwright-mcp/
+
+# Generated logs (curated audit evidence logs are the explicit exception)
+*.log
+!docs/audit-evidence/**/*.log
+
+# Local-only forensic artefacts of the version audit (contain local paths / private archive names)
+docs/audit-evidence/tools/
+docs/audit-evidence/zip_*.json
+docs/audit-evidence/zip_table.md
+docs/audit-evidence/zip08_truncated_header_scan.json
+docs/audit-evidence/canonical_manifest_sha256.tsv
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/

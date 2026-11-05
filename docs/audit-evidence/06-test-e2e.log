@@ -1,0 +1,20 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 test:e2e
+> node --experimental-strip-types --test ./tests/e2e/cli-demo.test.ts ./tests/e2e/web-api-platform.test.ts
+
+ÔûÂ E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014)
+  Ô£ö Runs `hegosentinel demo --offline`, generates sanitized reports, and verifies re-test loop without external network calls (31.903ms)
+Ô£ö E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014) (32.8273ms)
+ÔûÂ Sprint 8 ÔÇö Full Web Platform (apps/web) & Laravel API (apps/api) E2E Suite
+  Ô£ö renders all 9 platform screens, bilingual TR/EN dictionaries, and dark obsidian design tokens (3.4478ms)
+  Ô£ö serves /, /robots.txt, /sitemap.xml, and /llms.txt with hardened security headers (1.102ms)
+  Ô£ö passes all 36 Laravel API (apps/api) 14-module & SEC-011/012/013 integration assertions (5656.6288ms)
+Ô£ö Sprint 8 ÔÇö Full Web Platform (apps/web) & Laravel API (apps/api) E2E Suite (5662.9108ms)
+Ôä╣ tests 4
+Ôä╣ suites 2
+Ôä╣ pass 4
+Ôä╣ fail 0
+Ôä╣ cancelled 0
+Ôä╣ skipped 0
+Ôä╣ todo 0
+Ôä╣ duration_ms 5876.0925

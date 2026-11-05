@@ -1,0 +1,107 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 test
+> node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/integration/adapters-and-reports.test.ts ./tests/e2e/cli-demo.test.ts ./tests/e2e/web-api-platform.test.ts ./tests/security/independent-boundary-audit.test.ts ./tests/security/cookie-csp-identity-regression.test.ts ./tests/security/worker-containment-and-sprint2.test.ts
+
+ÔûÂ E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014)
+  Ô£ö Runs `hegosentinel demo --offline`, generates sanitized reports, and verifies re-test loop without external network calls (164.0996ms)
+Ô£ö E2E Tests: CLI `hegosentinel demo --offline` and `hegosentinel compare` (SEC-014) (165.639ms)
+ÔûÂ Sprint 8 ÔÇö Full Web Platform (apps/web) & Laravel API (apps/api) E2E Suite
+  Ô£ö renders all 9 platform screens, bilingual TR/EN dictionaries, and dark obsidian design tokens (6.4174ms)
+  Ô£ö serves /, /robots.txt, /sitemap.xml, and /llms.txt with hardened security headers (1.0827ms)
+  Ô£ö passes all 36 Laravel API (apps/api) 14-module & SEC-011/012/013 integration assertions (6163.4913ms)
+Ô£ö Sprint 8 ÔÇö Full Web Platform (apps/web) & Laravel API (apps/api) E2E Suite (6173.2037ms)
+ÔûÂ Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF)
+  Ô£ö Normalizes offline Semgrep (CODE-001) and Trivy (DEP-001) fixtures and exports valid SARIF 2.1.0 (43.4885ms)
+Ô£ö Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF) (61.8513ms)
+ÔûÂ Independent Code Audit Regression Suite (HS-AUDIT-001 .. HS-AUDIT-008)
+  Ô£ö HS-AUDIT-001 (P0): Baseline finding on /old must NEVER become verified_fixed when current scan only tested /different-page (26.9375ms)
+  Ô£ö HS-AUDIT-004 (P1): Changing grant_id or scope_version between baseline and current must mark comparison not_comparable (5.2942ms)
+  Ô£ö HS-AUDIT-002 (P0): Symlink or junction inside approved repository pointing outside allowed_repositories must be denied via realpath (5.7596ms)
+  Ô£ö HS-AUDIT-007 (P1): CODE-001 and DEP-001 recheck verifies same-repo fixes and blocks cross-repo false verified_fixed (100.5275ms)
+  Ô£ö NEW-01 (P1): Deep symlink (depth 13+ / 20), unreadable directory, and TOCTOU symlink mutation must fail-closed (3.4716ms)
+  Ô£ö NEW-02 (P1): Invalid or overly permissive CSP must NEVER set positive_validation_passed=true or recheck_state=verified_fixed (3.7795ms)
+  Ô£ö NEW-03 (P1/P2): Runtime validator must enforce JSON Schema Draft 2020-12 required fields, minimum bounds, and additionalProperties=false (3.6053ms)
+Ô£ö Independent Code Audit Regression Suite (HS-AUDIT-001 .. HS-AUDIT-008) (166.0216ms)
+ÔûÂ Audit: evidence must prove the same cookie was fixed
+  Ô£ö different secure cookie cannot prove remediation of the original vulnerable cookie (19.3981ms)
+  Ô£ö the same cookie with all valid attributes can verify remediation (2.6442ms)
+  Ô£ö unknown SameSite attribute must not be accepted as a secure fix (1.665ms)
+  Ô£ö __Host- cookie prefix with Domain attribute or non-root Path must not verify remediation (3.0491ms)
+  Ô£ö duplicate SameSite attributes must not be accepted as a clean cookie remediation (2.4002ms)
+Ô£ö Audit: evidence must prove the same cookie was fixed (31.1159ms)
+ÔûÂ Audit: conservative CSP remediation evidence
+  Ô£ö duplicate directives must not be marked enforcing (browser uses first directive) (0.4641ms)
+  Ô£ö a permissive script-src-elem override must not be marked enforcing (0.3176ms)
+  Ô£ö a permissive script-src-attr override must not be marked enforcing (0.3596ms)
+  Ô£ö a narrow script policy remains accepted for deterministic demo verification (0.2426ms)
+Ô£ö Audit: conservative CSP remediation evidence (1.9099ms)
+ÔûÂ Audit: Local Workbench server hardening
+  Ô£ö validateLoopbackRequest blocks DNS-rebinding Host headers and cross-origin POST requests (0.8044ms)
+  Ô£ö readJsonBody rejects malformed JSON (400) and oversized payloads > 16 KB (413) (0.9929ms)
+  Ô£ö serves Workbench HTML/CSS/JS with enforcing CSP free of unsafe-inline (1.1284ms)
+Ô£ö Audit: Local Workbench server hardening (3.2512ms)
+ÔûÂ Independent alpha.3 boundary audit regressions
+  Ô£ö AUD-2026-01: HTML to JSON or 404 must not verify a CSP fix (27.6892ms)
+  Ô£ö AUD-2026-02: Symlinks hidden inside node_modules do not bypass the approved repository boundary (7.8445ms)
+  Ô£ö AUD-2026-05: Caller-supplied egress flags cannot activate an unimplemented remote transport (1.2177ms)
+  Ô£ö AUD-2026-04: An oversized repository scope inspection fails closed within a configured entry budget (1.4794ms)
+  Ô£ö AUD-2026-03: A false_positive decision from a different scope_version is not valid in the current scope (2.0567ms)
+Ô£ö Independent alpha.3 boundary audit regressions (42.3307ms)
+ÔûÂ Release-Blocking Security Acceptance Matrix (SEC-001 .. SEC-014)
+  Ô£ö SEC-001: Missing, expired, outside-window, wildcard, or domain-proof-only permission emits denied with zero requests (6.7337ms)
+  Ô£ö SEC-002: Private, loopback, link-local, cloud metadata, and IPv6/mapped-IPv6 destinations are denied (11.7217ms)
+  Ô£ö SEC-003: Redirect to out-of-scope destination or HTTP downgrade is logged and not followed (4.5472ms)
+  Ô£ö SEC-004: DNS rebind between validation and socket connect is rejected (1.553ms)
+  Ô£ö SEC-005: Remote scan mode fails closed unless network-layer egress isolation is verified and internal plane is unreachable (1.438ms)
+  Ô£ö SEC-006: Repository scan blocks forbidden executables (npm/composer/sh) and out-of-scope paths (11.2955ms)
+  Ô£ö SEC-007: Secrets in headers, cookies, URLs, and tool output never appear in reports (6.1443ms)
+  Ô£ö SEC-008: Missing tool or failed check produces skipped/completed_with_gaps, never complete/clean (2.1224ms)
+  Ô£ö SEC-009 & SEC-010: Re-test marks mismatched scope/rule-version as not_comparable and enforces scoped false_positive suppression (3.1537ms)
+  Ô£ö SEC-011: Multi-tenant boundary and RBAC isolation denies cross-tenant/cross-project reads and unprivileged actions (0.566ms)
+  Ô£ö SEC-012: Emergency stop kill-switch aborts active runs, revokes stop tokens, and blocks post-cancel execution (2.3457ms)
+  Ô£ö SEC-013: External notifications are disabled by default and block public sinks, unverified recipients, non-owners, and unredacted secrets (1.1612ms)
+Ô£ö Release-Blocking Security Acceptance Matrix (SEC-001 .. SEC-014) (55.5715ms)
+ÔûÂ Sprint A (P0 ÔÇö G0.5): Offline worker container isolation, WKR-001..WKR-006 & subprocess lifecycle
+  Ô£ö validates the default unprivileged worker container policy and rejects privileged/socket/writable escapes (2.1043ms)
+  Ô£ö validates source-offline-manifest.json and builds hardened docker run args while rejecting forbidden mounts/env (1.0942ms)
+  ´╣ú WKR-001 (Docker runtime): internet egress blocked inside --network=none container (10.9328ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ´╣ú WKR-002 (Docker runtime): cloud metadata 169.254.169.254 and fd00:ec2::254 blocked inside container (6.143ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ´╣ú WKR-003 (Docker runtime): writing to read-only rootfs and /workspace/repo:ro fails with EROFS (8.3651ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ´╣ú WKR-004 (Docker runtime): symlink escape outside /workspace/repo:ro blocked inside container (7.1625ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  ´╣ú WKR-005 (Docker runtime): container CPU/memory/PID/timeout resource exhaustion killed cleanly (7.1749ms) # SKIP (not verified): Docker runtime unavailable on host (Docker Engine not available on host (ENOENT))
+  Ô£ö WKR-005 & WKR-006 (Host subprocess): AbortSignal cancellation sends SIGTERM/SIGKILL and records tool_status=killed / timed_out / not_installed (7836.6836ms)
+Ô£ö Sprint A (P0 ÔÇö G0.5): Offline worker container isolation, WKR-001..WKR-006 & subprocess lifecycle (7881.7158ms)
+ÔûÂ Sprint B (P0 ÔÇö G0.6): SignedRemoteExecutionGrant, NonceReplayRegistry & Egress Bypass Negative Matrix
+  Ô£ö generates per-run network policy and demonstrates zero prohibited outbound connections in simulated netns firewall logs (8.5747ms)
+  Ô£ö enforces SignedRemoteExecutionGrant bindings and blocks replay, stale TTL (>300s), grant substitution, untrusted signer, and proxy env escape (1.3567ms)
+  Ô£ö rejects caller-supplied booleans and forged/expired worker capability attestations (1.0465ms)
+  Ô£ö executeBoundedPassiveRequest enforces GET/HEAD limits, body size cap, kill-switch cancellation, and redirect/rebind guards (0.9731ms)
+  Ô£ö Out-of-worker TrustedEgressBroker enforces deny-by-default policy, SignedRemoteExecutionGrant, SSRF/rebind/redirect drops, header stripping, and hash-chained audit logs (EGR-001..EGR-006) (2.19ms)
+Ô£ö Sprint B (P0 ÔÇö G0.6): SignedRemoteExecutionGrant, NonceReplayRegistry & Egress Bypass Negative Matrix (14.5002ms)
+ÔûÂ Sprint C (P1): Real scanner binary probes, source drift re-test, and TLS/HTML boundary matrix
+  ´╣ú Real Semgrep binary execution against repository fixture (or SKIP not verified if binary not installed) (563.3656ms) # SKIP (not verified): semgrep binary not installed on host (semgrep binary not installed in PATH (2))
+  Ô£ö Real Trivy binary execution against repository fixture (or SKIP not verified if binary not installed) (586.7252ms)
+  Ô£ö Semgrep and Trivy subprocess runners enforce shell:false, offline flags, timeout failures, and Trivy DB freshness (10300.8869ms)
+  Ô£ö compareScanReports detects Semgrep rulepack_version drift, stale Trivy DB, and notes db_version drift (20576.6147ms)
+  Ô£ö WEB-TLS-001 evaluates handshake errors as failed coverage, detects expired/weak/mismatch TLS, and verifies fixes on re-test (1.5851ms)
+  Ô£ö HTML report escapes XSS payloads in headers/URLs and failed checks produce completed_with_gaps (1.3658ms)
+Ô£ö Sprint C (P1): Real scanner binary probes, source drift re-test, and TLS/HTML boundary matrix (32030.9271ms)
+ÔûÂ Sprint 7: Docker outcome analysis, Synthetic Laravel/Next.js/Node.js targets, Egress Broker HTTP Server, Production Hardening & Release Gate
+  Ô£ö analyzeDockerRunOutcome never mistakes Docker CLI / missing-image errors (125/126/127) for security success (0.4614ms)
+  Ô£ö normalizes synthetic Laravel, Next.js, and Node.js source vulnerabilities, dependency CVEs, and misconfigurations (50.0768ms)
+  Ô£ö runs out-of-process createTrustedEgressBrokerServer over HTTP and enforces EGR-001..006 & control-plane auth (1.8992ms)
+  Ô£ö enforces Production Security: report tenant isolation, TamperEvidentAuditLog, extended secret scrubbing, safe output paths, and release gate blocker (3.2752ms)
+Ô£ö Sprint 7: Docker outcome analysis, Synthetic Laravel/Next.js/Node.js targets, Egress Broker HTTP Server, Production Hardening & Release Gate (55.8911ms)
+ÔûÂ Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions
+  Ô£ö HSR-04 Negative Fixtures: non-HTML asset, CSP-Report-Only, and public preference cookie do not produce false findings (18.638ms)
+  Ô£ö S1-03: Validates finding semantics and CVSS v4.0 vector requirement (2.453ms)
+  Ô£ö S1-05: Verifies new, persistent, verified_fixed, and reopened state transitions (3.7783ms)
+Ô£ö Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions (26.4107ms)
+Ôä╣ tests 67
+Ôä╣ suites 14
+Ôä╣ pass 61
+Ôä╣ fail 0
+Ôä╣ cancelled 0
+Ôä╣ skipped 6
+Ôä╣ todo 0
+Ôä╣ duration_ms 40893.4178

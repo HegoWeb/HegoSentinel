@@ -1,0 +1,24 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:6 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> hegosentinel@0.1.0-alpha.4 test:unit
+> node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts
+
+▶ Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions
+  ✔ HSR-04 Negative Fixtures: non-HTML asset, CSP-Report-Only, and public preference cookie do not produce false findings (12.8074ms)
+  ✔ S1-03: Validates finding semantics and CVSS v4.0 vector requirement (4.1455ms)
+  ✔ S1-05: Verifies new, persistent, verified_fixed, and reopened state transitions (3.1224ms)
+✔ Unit Tests: Web Observers, Negative Fixtures (HSR-04), and Re-Test Transitions (21.858ms)
+ℹ tests 3
+ℹ suites 1
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 297.7223

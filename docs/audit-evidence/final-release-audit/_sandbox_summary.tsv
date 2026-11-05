@@ -1,0 +1,8 @@
+lint	0	01-lint.log
+typecheck	0	02-typecheck.log
+docs:links	0	03-docs-links.log
+test:api	0	04-php-api-tests.log
+test:unit	0	05-unit-tests.log
+test:security	0	07-security-tests.log
+test:e2e	0	08-e2e-tests.log
+demo	0	14-demo.log

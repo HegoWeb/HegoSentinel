@@ -1,0 +1,14 @@
+powershell.exe : Attempting to perform the InitializeDefaultDrives operation on the 'FileSystem' provider failed.
+At line:6 char:13
++   $output = & powershell -NoProfile -Command $cmd 2>&1 | Out-String
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Attempting to p...rovider failed.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> hegosentinel@0.1.0-alpha.4 typecheck
+> node ./node_modules/typescript/lib/tsc.js -p tsconfig.json --noEmit && node ./node_modules/typescript/lib/tsc.js -p apps/web/tsconfig.json --noEmit && node --experimental-strip-types ./scripts/lint-and-typecheck.ts --typecheck
+
+[OK] TYPECHECK passed: verified 30 TypeScript files, 11 JSON schema/fixture files, and runtime document contracts.
+(node:4756) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

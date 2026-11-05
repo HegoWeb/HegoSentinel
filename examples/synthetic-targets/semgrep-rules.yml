@@ -1,0 +1,60 @@
+rules:
+  - id: hegosentinel.laravel.raw-sql-injection
+    languages: [php]
+    message: "Unparameterized string concatenation inside DB::raw() can allow SQL injection."
+    severity: ERROR
+    metadata:
+      cwe: "CWE-89"
+      confidence: HIGH
+      ruleset_version: "1.2.0"
+    pattern: DB::raw($A . $B)
+
+  - id: hegosentinel.laravel.debug-enabled-misconfig
+    languages: [php]
+    message: "Hardcoded 'debug' => true in Laravel config exposes stack traces in production."
+    severity: WARNING
+    metadata:
+      cwe: "CWE-489"
+      confidence: HIGH
+      ruleset_version: "1.2.0"
+    pattern: "[..., 'debug' => true, ...]"
+
+  - id: hegosentinel.nextjs.dangerously-set-inner-html
+    languages: [typescript, javascript]
+    message: "Unvalidated HTML passed to dangerouslySetInnerHTML creates a DOM XSS sink."
+    severity: ERROR
+    metadata:
+      cwe: "CWE-79"
+      confidence: HIGH
+      ruleset_version: "1.2.0"
+    pattern: "{ __html: $HTML }"
+
+  - id: hegosentinel.nextjs.public-env-secret-exposure
+    languages: [typescript, javascript]
+    message: "Exposing internal secret via NEXT_PUBLIC_ environment variable bundles it into client JavaScript."
+    severity: ERROR
+    metadata:
+      cwe: "CWE-200"
+      confidence: HIGH
+      ruleset_version: "1.2.0"
+    pattern: process.env.NEXT_PUBLIC_INTERNAL_API_SECRET
+
+  - id: hegosentinel.nodejs.child-process-exec
+    languages: [javascript, typescript]
+    message: "Dynamic string concatenation in child_process.exec() enables OS command injection."
+    severity: ERROR
+    metadata:
+      cwe: "CWE-78"
+      confidence: HIGH
+      ruleset_version: "1.2.0"
+    pattern: exec($CMD + $INPUT, ...)
+
+  - id: hegosentinel.nodejs.tls-verify-disabled
+    languages: [javascript, typescript]
+    message: "Disabling TLS certificate validation (rejectUnauthorized: false) allows MITM interception."
+    severity: WARNING
+    metadata:
+      cwe: "CWE-295"
+      confidence: HIGH
+      ruleset_version: "1.2.0"
+    pattern: "{ ..., rejectUnauthorized: false, ... }"

@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "grant_id": "GRANT-DEMO-2026-0001",
+  "scope_version": 1,
+  "organization_id": "org-hegoweb-demo",
+  "project_id": "proj-safe-demo",
+  "project_name": "Sample Laravel + Next.js Application (Offline Fixture)",
+  "stack": ["laravel", "nextjs"],
+  "profile": "local-demo",
+  "owner": "HegoWeb Maintainers",
+  "authorization_statement": "Explicitly authorized synthetic offline demonstration fixture for HegoSentinel Stage 0 and Stage 1 verification.",
+  "domain_control_proof": "synthetic-fixture-only",
+  "written_permission_ref": "DEMO-AUTH-DOC-2026-01",
+  "emergency_contact": "security-demo@example.test",
+  "issued_at": "2026-01-01T00:00:00.000Z",
+  "expires_at": "2030-12-31T23:59:59.000Z",
+  "time_window": {
+    "start_at": "2026-01-01T00:00:00.000Z",
+    "end_at": "2030-12-31T23:59:59.000Z"
+  },
+  "max_request_budget": 10,
+  "allowed_methods": ["GET", "HEAD"],
+  "allowed_checks": ["WEB-HEADER-001", "WEB-COOKIE-001"],
+  "targets": [
+    {
+      "scheme": "https",
+      "hostname": "demo.example.test",
+      "port": 443,
+      "path_prefix": "/"
+    }
+  ],
+  "allowed_repositories": [
+    "./examples/safe-demo/sample-repo"
+  ]
+}
+

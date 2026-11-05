@@ -1,0 +1,21 @@
+{
+  "fixture_id": "FIXTURE-DEMO-PATCHED-01",
+  "description": "Synthetic patched fixture after developer adds Content-Security-Policy on https://demo.example.test/; HS-0001 transitions to verified_fixed while HS-0002 remains persistent.",
+  "endpoints": [
+    {
+      "url": "https://demo.example.test/",
+      "method": "GET",
+      "status_code": 200,
+      "headers": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "Set-Cookie": [
+          "hegosentinel_session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c; Path=/",
+          "theme=dark; Path=/; Secure; SameSite=Lax"
+        ]
+      }
+    }
+  ]
+}
+

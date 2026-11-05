@@ -1,0 +1,8 @@
+﻿T01-lint	0	0.8	npm run lint
+T02-typecheck	0	3	npm run typecheck
+T03-markdown-links	0	0.7	npm run docs:links
+T04-test-full	0	44.3	npm test
+T05-test-api-php	0	12.4	npm run test:api
+T06-demo	0	0.8	npm run demo
+T07-verify-gates	0	2.2	npm run verify:gates
+T08-release-gate	0	2.1	npm run verify:release-gate

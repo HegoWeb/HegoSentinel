@@ -1,0 +1,15 @@
+﻿
+> hegosentinel@0.1.0-alpha.4 test:integration
+> node --experimental-strip-types --test ./tests/integration/adapters-and-reports.test.ts
+
+ÔûÂ Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF)
+  Ô£ö Normalizes offline Semgrep (CODE-001) and Trivy (DEP-001) fixtures and exports valid SARIF 2.1.0 (22.7308ms)
+Ô£ö Integration Tests: Semgrep/Trivy Adapters and Report Exporters (JSON/MD/HTML/SARIF) (23.5541ms)
+Ôä╣ tests 1
+Ôä╣ suites 1
+Ôä╣ pass 1
+Ôä╣ fail 0
+Ôä╣ cancelled 0
+Ôä╣ skipped 0
+Ôä╣ todo 0
+Ôä╣ duration_ms 222.9614
