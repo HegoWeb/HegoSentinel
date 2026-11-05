@@ -32,11 +32,15 @@ use App\Support\TenantRlsContext;
 use Database\Migrations\CreateHegosentinelPlatformTables;
 use Database\Migrations\EnablePostgresqlRowLevelSecurity;
 
-$pgHost = getenv('PG_TEST_HOST') ?: '127.0.0.1';
-$pgPort = getenv('PG_TEST_PORT') ?: '54329';
-$pgDb = getenv('PG_TEST_DB') ?: 'hegosentinel';
-$pgUser = getenv('PG_TEST_USER') ?: 'postgres';
-$pgPass = getenv('PG_TEST_PASS') ?: '';
+$pgHost = getenv('PG_TEST_HOST') ?: (getenv('DB_HOST') ?: '127.0.0.1');
+$pgPort = getenv('PG_TEST_PORT') ?: (getenv('DB_PORT') ?: '54329');
+$pgDb = getenv('PG_TEST_DB') ?: (getenv('DB_DATABASE') ?: 'hegosentinel');
+$pgUser = getenv('PG_TEST_USER') ?: (getenv('DB_USERNAME') ?: (getenv('DB_ADMIN_USERNAME') ?: 'postgres'));
+$pgPass = getenv('PG_TEST_PASS') !== false
+    ? (string) getenv('PG_TEST_PASS')
+    : (getenv('DB_PASSWORD') !== false
+        ? (string) getenv('DB_PASSWORD')
+        : (getenv('DB_ADMIN_PASSWORD') !== false ? (string) getenv('DB_ADMIN_PASSWORD') : ''));
 
 putenv('APP_ENV=local');
 putenv('HEGOSENTINEL_DEMO_MODE=1');
