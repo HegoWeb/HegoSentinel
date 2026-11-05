@@ -30,3 +30,4 @@ final class CreateScopeGrantRequest extends FormRequest
         ];
     }
 }
+

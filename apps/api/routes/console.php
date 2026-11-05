@@ -9,3 +9,4 @@ Artisan::command('hegosentinel:verify-audit', function (): void {
     $result = $service->verifyAuditChainIntegrity();
     $this->info(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 })->purpose('Verify the SHA-256 hash chain integrity of audit_logs');
+

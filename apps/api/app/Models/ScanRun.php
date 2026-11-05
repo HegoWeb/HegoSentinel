@@ -55,3 +55,4 @@ final class ScanRun extends Model
         return $this->hasMany(Finding::class, 'scan_run_id', 'id');
     }
 }
+

@@ -32,3 +32,4 @@ final class OrganizationPolicy
             && in_array((string) ($principal['role'] ?? ''), ['owner', 'security_lead'], true);
     }
 }
+

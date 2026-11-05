@@ -43,3 +43,4 @@ final class RemediationTaskPolicy
         return in_array((string) $task->project_id, $allowedProjectIds, true);
     }
 }
+

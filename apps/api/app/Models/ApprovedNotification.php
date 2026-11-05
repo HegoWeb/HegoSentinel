@@ -32,3 +32,4 @@ final class ApprovedNotification extends Model
         'created_at',
     ];
 }
+

@@ -20,10 +20,18 @@
   },
   "include": [
     "types/**/*.d.ts",
-    "apps/**/*.ts",
+    "apps/egress-broker/**/*.ts",
+    "apps/worker/**/*.ts",
+    "apps/web/src/server.ts",
+    "apps/web/src/lib/**/*.ts",
     "packages/**/*.ts",
     "integrations/**/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "apps/web/node_modules",
+    "apps/web/.next"
   ]
 }

@@ -14,8 +14,22 @@ env:
 
 jobs:
   unit-integration-security-e2e:
-    name: Unit, Integration, Security Matrix (SEC-001..014) & E2E Tests
+    name: Unit, Integration, Security Matrix (SEC-001..014), Laravel 11, PostgreSQL 16 RLS & Next.js 15
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_DB: hegosentinel
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_ci_password
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d hegosentinel"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     strategy:
       fail-fast: false
       matrix:
@@ -29,8 +43,13 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install toolchain dependencies (TypeScript compiler)
-        run: npm ci --ignore-scripts
+      - name: Install toolchain & Next.js 15 dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/web
+
+      - name: Build Next.js 15 App Router Frontend (S10-05)
+        run: npm run build:web
 
       - name: Static Policy & Security Lint
         run: npm run lint
@@ -41,15 +60,29 @@ jobs:
       - name: Verify Relative Markdown Links
         run: npm run docs:links
 
-      - name: Setup PHP 8.3 (CLI + pdo_sqlite) for Platform API & Sprint 9 B1 Regression Suite
+      - name: Setup PHP 8.3 (CLI + pdo_sqlite + pdo_pgsql) for Laravel 11 API & PostgreSQL 16 RLS
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo, pdo_sqlite, openssl, json
+          extensions: pdo, pdo_sqlite, pdo_pgsql, pgsql, openssl, json
+          tools: composer:v2
           coverage: none
 
-      - name: Run PHP Platform API (14-Module) & Sprint 9 B1 Security Regression Tests
+      - name: Install Laravel 11 Composer Dependencies (S10-01)
+        run: composer install --working-dir=apps/api --no-interaction --no-progress --no-scripts
+
+      - name: Run Laravel 11 API (14-Module), B1 Regression & Kernel Tests (S10-01 / S10-03)
         run: npm run test:api
+
+      - name: Run PostgreSQL 16 Row-Level Security (RLS) Verification Suite (S10-02)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "54329"
+          DB_DATABASE: hegosentinel
+          DB_ADMIN_USERNAME: postgres
+          DB_ADMIN_PASSWORD: postgres_ci_password
+          REQUIRE_POSTGRES_RLS: "1"
+        run: npm run test:postgres-rls
 
       - name: Run Unit, Integration, Security & E2E Test Suites
         run: |

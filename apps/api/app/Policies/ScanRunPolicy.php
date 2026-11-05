@@ -48,3 +48,4 @@ final class ScanRunPolicy
         return in_array((string) $scanRun->project_id, $allowedProjectIds, true);
     }
 }
+

@@ -12,7 +12,7 @@ const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 function collectTsFiles(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === '.git' || entry === 'reports') continue;
+    if (entry === 'node_modules' || entry === '.git' || entry === 'reports' || entry === '.next') continue;
     const full = join(dir, entry);
     const st = statSync(full);
     if (st.isDirectory()) {
@@ -60,7 +60,14 @@ async function main(): Promise<void> {
     }
 
     // 3. For typecheck mode, also dynamically import non-test modules to verify module graph resolution
-    if (mode === 'typecheck' && !rel.startsWith('tests/') && !rel.startsWith('scripts/')) {
+    if (
+      mode === 'typecheck' &&
+      !rel.startsWith('tests/') &&
+      !rel.startsWith('scripts/') &&
+      !rel.startsWith('apps/web/next.config.') &&
+      !rel.startsWith('apps/web/src/middleware.') &&
+      !rel.startsWith('apps/web/src/app/')
+    ) {
       try {
         await import(pathToFileURL(file).href);
       } catch (err) {

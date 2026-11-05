@@ -217,3 +217,4 @@ final class WorkerSupervisorClient
         return $decoded;
     }
 }
+

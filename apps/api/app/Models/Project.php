@@ -50,3 +50,4 @@ final class Project extends Model
         return $this->hasMany(ScanRun::class, 'project_id', 'id');
     }
 }
+

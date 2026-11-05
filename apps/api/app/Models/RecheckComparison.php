@@ -31,3 +31,4 @@ final class RecheckComparison extends Model
         'created_at',
     ];
 }
+

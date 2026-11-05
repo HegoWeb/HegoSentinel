@@ -13,6 +13,7 @@ services:
     volumes:
       - hego_pgdata:/var/lib/postgresql/data
     networks:
+      - hego_data
       - hego_platform
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hegosentinel -d hegosentinel"]
@@ -23,10 +24,13 @@ services:
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:6379:6379"
+    volumes:
+      - hego_redisdata:/data
     networks:
+      - hego_data
       - hego_platform
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -54,6 +58,37 @@ services:
     networks:
       - hego_internal
       - hego_platform
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/v1/egress/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker-supervisor:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    command: ["node", "--experimental-strip-types", "apps/worker/src/supervisor.ts"]
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HEGOSENTINEL_SUPERVISOR_HOST: "0.0.0.0"
+      HEGOSENTINEL_SUPERVISOR_PORT: "8795"
+      HEGOSENTINEL_SUPERVISOR_SECRET: ${HEGOSENTINEL_SUPERVISOR_SECRET:-hegosentinel-sprint10-supervisor-hmac-secret-2026}
+    networks:
+      - hego_internal
+      - hego_platform
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8795/v1/supervisor/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   worker:
     build:
@@ -82,21 +117,73 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      worker-supervisor:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
-      APP_ENV: local
+      APP_ENV: production
+      APP_DEBUG: "false"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_DATABASE: hegosentinel
-      DB_USERNAME: hegosentinel
-      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_local_dev}
+      DB_USERNAME: hegosentinel_app
+      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_app_rls_pass}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       QUEUE_CONNECTION: redis
+      HEGOSENTINEL_WORKER_SUPERVISOR_URL: "http://worker-supervisor:8795"
+      HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
     ports:
       - "127.0.0.1:8000:8000"
     networks:
+      - hego_data
+      - hego_internal
+      - hego_edge
       - hego_platform
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/api/v1/health') ? 0 : 1);"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  horizon:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["php", "artisan", "queue:work", "redis", "--queue=hegosentinel-scans,hegosentinel-rechecks,hegosentinel-notifications", "--tries=2", "--timeout=120"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker-supervisor:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: hegosentinel
+      DB_USERNAME: hegosentinel_app
+      DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_app_rls_pass}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      QUEUE_CONNECTION: redis
+      HEGOSENTINEL_WORKER_SUPERVISOR_URL: "http://worker-supervisor:8795"
+      HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
+    networks:
+      - hego_data
+      - hego_internal
 
   web:
     build:
@@ -104,24 +191,41 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       NODE_ENV: production
       PORT: "3000"
       HOST: "0.0.0.0"
+      HEGOSENTINEL_API_UPSTREAM_URL: "http://api:8000"
       NEXT_PUBLIC_API_URL: "http://api:8000"
     ports:
       - "127.0.0.1:3000:3000"
     networks:
+      - hego_edge
       - hego_platform
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/robots.txt').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   hego_platform:
     driver: bridge
+  hego_edge:
+    driver: bridge
+  hego_data:
+    driver: bridge
+    internal: true
   hego_internal:
     driver: bridge
     internal: true
 
 volumes:
   hego_pgdata:
-
+  hego_redisdata:

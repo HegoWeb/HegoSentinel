@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'node:test';
 import type { ScopeAuthorizationGrant } from '../../packages/findings-schema/src/index.ts';
 import {
   dispatchWorkerSupervisorHttpRequest,
@@ -17,6 +17,8 @@ function buildValidGrant(overrides: Partial<ScopeAuthorizationGrant> = {}): Scop
     organization_id: 'org-acme-sec',
     project_id: 'proj-acme-portal',
     project_name: 'Acme Portal Security Program',
+    stack: ['laravel', 'nextjs'],
+    profile: 'source',
     owner: 'usr-acme-owner',
     authorization_statement: 'Authorized offline source and passive header security assessment for Acme Portal.',
     written_permission_ref: 'PERM-ACME-2026-S10-001',
@@ -25,12 +27,10 @@ function buildValidGrant(overrides: Partial<ScopeAuthorizationGrant> = {}): Scop
     expires_at: expiresAt,
     time_window: {
       start_at: issuedAt,
-      end_at: expiresAt,
-      timezone: 'UTC'
+      end_at: expiresAt
     },
     targets: [
       {
-        target_id: 'target-acme-portal',
         scheme: 'https',
         hostname: 'portal.acme-example.com',
         port: 443,

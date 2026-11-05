@@ -26,3 +26,4 @@ final class TriggerEmergencyStopRequest extends FormRequest
         ];
     }
 }
+

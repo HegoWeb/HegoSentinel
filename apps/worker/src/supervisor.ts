@@ -354,7 +354,7 @@ export class WorkerSupervisorService {
     container_id?: string | null;
     worker_pid?: number | null;
   }): Promise<SupervisorCancelResult> {
-    const startHr = process.hrtime.bigint();
+    const startMs = performance.now();
     this.cancelledScanIds.add(params.scan_id);
 
     const active = this.activeScans.get(params.scan_id);
@@ -363,7 +363,7 @@ export class WorkerSupervisorService {
       active.heartbeat_at = new Date().toISOString();
     }
 
-    const elapsedMs = Math.max(1, Number((process.hrtime.bigint() - startHr) / 1_000_000n));
+    const elapsedMs = Math.max(1, Math.round(performance.now() - startMs));
     return {
       terminated: true,
       scan_id: params.scan_id,
@@ -426,13 +426,25 @@ export class WorkerSupervisorService {
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const raw = Buffer.concat(chunks).toString('utf8').trim();
-  if (!raw) return {};
-  return JSON.parse(raw) as Record<string, unknown>;
+  return new Promise((resolvePromise, rejectPromise) => {
+    let raw = '';
+    req.on('data', (chunk: unknown) => {
+      raw += String(chunk);
+    });
+    req.on('end', () => {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        resolvePromise({});
+        return;
+      }
+      try {
+        resolvePromise(JSON.parse(trimmed) as Record<string, unknown>);
+      } catch (err) {
+        rejectPromise(err);
+      }
+    });
+    req.on('error', (err: unknown) => rejectPromise(err));
+  });
 }
 
 function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {

@@ -172,3 +172,4 @@ final class TenantRlsContext
         return (bool) $stmt->fetchColumn();
     }
 }
+

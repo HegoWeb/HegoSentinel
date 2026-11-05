@@ -34,3 +34,4 @@ final class Organization extends Model
         return $this->hasMany(Project::class, 'organization_id', 'id');
     }
 }
+

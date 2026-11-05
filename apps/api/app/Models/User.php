@@ -54,3 +54,4 @@ final class User extends Authenticatable
         return $this->hasMany(UserSession::class, 'user_id', 'id');
     }
 }
+

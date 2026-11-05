@@ -38,3 +38,4 @@ final class RemediationTask extends Model
         'updated_at',
     ];
 }
+

@@ -32,3 +32,4 @@ final class ScanQueueJob extends Model
         'error_message',
     ];
 }
+

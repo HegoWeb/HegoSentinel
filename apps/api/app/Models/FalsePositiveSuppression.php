@@ -29,3 +29,4 @@ final class FalsePositiveSuppression extends Model
         'created_at',
     ];
 }
+

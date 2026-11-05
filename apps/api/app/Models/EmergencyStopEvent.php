@@ -29,3 +29,4 @@ final class EmergencyStopEvent extends Model
         'created_at',
     ];
 }
+

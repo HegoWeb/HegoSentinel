@@ -55,3 +55,4 @@ final class Finding extends Model
         return $this->belongsTo(Project::class, 'project_id', 'id');
     }
 }
+

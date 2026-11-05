@@ -31,3 +31,4 @@ final class AuditLog extends Model
         'entry_hash',
     ];
 }
+

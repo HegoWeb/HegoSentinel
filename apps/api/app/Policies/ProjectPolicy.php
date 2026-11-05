@@ -64,3 +64,4 @@ final class ProjectPolicy
         return in_array((string) $project->id, $allowedProjectIds, true);
     }
 }
+
