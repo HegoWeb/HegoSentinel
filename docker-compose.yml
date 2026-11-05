@@ -2,7 +2,7 @@ name: hegosentinel-platform
 
 services:
   postgres:
-    image: postgres:16.6-alpine
+    image: postgres:16.6-alpine@sha256:aba1fab92ab5dc8aa8c2cc98d0b9b23a2bd27907ed04a2b132b00f132e352828
     restart: unless-stopped
     environment:
       POSTGRES_DB: hegosentinel
@@ -22,7 +22,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7.4-alpine
+    image: redis:7.4-alpine@sha256:06fa4bfce2a6b6bf7a116a9d224f1a21b9d72b114d63218c98089f06a99714b6
     restart: unless-stopped
     command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
     ports:
@@ -137,7 +137,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-hegosentinel_local_dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      QUEUE_CONNECTION: database
+      QUEUE_CONNECTION: redis
       HEGOSENTINEL_WORKER_SUPERVISOR_URL: "http://worker-supervisor:8795"
       HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
     ports:

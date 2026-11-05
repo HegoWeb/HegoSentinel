@@ -82,15 +82,53 @@ final class PlatformApiController
                     'framework' => class_exists(\Illuminate\Foundation\Application::class)
                         ? 'Laravel ' . \Illuminate\Foundation\Application::VERSION
                         : 'PHP Native Fallback',
-                    'version' => '0.2.0-sprint10',
+                    'version' => '0.2.0-sprint11',
                     'php_version' => PHP_VERSION,
                     'db_driver' => DatabaseManager::driver(),
+                    'execution_mode' => 'STAGING_HARDENING',
+                    'production_ready' => false,
+                    'production_readiness_note' => 'Staging verification only — production deployment requires external KMS/Vault, TLS termination, dedicated isolated worker host, and explicit operator release sign-off.',
                     'restricted_remote_mode' => 'BLOCKED',
                     'pinned_scanners' => [
                         'semgrep' => '1.183.0',
                         'trivy' => '0.76.1',
                     ],
                     'audit_chain_integrity' => $audit,
+                ]);
+            }
+
+            // Readiness probe for Staging Reverse Proxy / Orchestrator (STG-08)
+            if ($method === 'GET' && ($cleanPath === '/api/v1/readiness' || $cleanPath === '/readiness')) {
+                $dbOk = false;
+                $rlsTables = 0;
+                try {
+                    $pdo = $this->service->pdo();
+                    $dbOk = (int) $pdo->query('SELECT 1')->fetchColumn() === 1;
+                    if (DatabaseManager::driver() === 'pgsql') {
+                        $rlsTables = (int) $pdo->query(
+                            "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relrowsecurity = true AND c.relforcerowsecurity = true"
+                        )->fetchColumn();
+                    }
+                } catch (Throwable) {
+                    $dbOk = false;
+                }
+
+                $horizonEngine = new \App\Queue\HorizonRedisQueueEngine();
+                $redisOk = $horizonEngine->isRedisReachable(1.0);
+
+                return $this->json($dbOk ? 200 : 503, [
+                    'ok' => $dbOk,
+                    'ready' => $dbOk,
+                    'service' => 'hegosentinel-laravel-api',
+                    'execution_mode' => 'STAGING_HARDENING',
+                    'production_ready' => false,
+                    'checks' => [
+                        'database_connected' => $dbOk,
+                        'db_driver' => DatabaseManager::driver(),
+                        'postgres_force_rls_tables' => $rlsTables,
+                        'redis_queue_reachable' => $redisOk,
+                        'restricted_remote_mode' => 'BLOCKED',
+                    ],
                 ]);
             }
 

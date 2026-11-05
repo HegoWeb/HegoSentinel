@@ -38,9 +38,21 @@ final class ExecuteRecheckComparisonJob implements ShouldQueue, ShouldBeUnique
         public readonly string $recheckKey,
         public readonly array $baselineReport,
         public readonly array $currentReport,
-        public readonly array $suppressions = []
+        public readonly array $suppressions = [],
+        public readonly ?string $organizationId = null
     ) {
         $this->onQueue('hegosentinel-rechecks');
+    }
+
+    public function resolvedOrganizationId(): ?string
+    {
+        if ($this->organizationId !== null && trim($this->organizationId) !== '') {
+            return trim($this->organizationId);
+        }
+        if (isset($this->baselineReport['organization_id']) && is_string($this->baselineReport['organization_id'])) {
+            return trim($this->baselineReport['organization_id']);
+        }
+        return null;
     }
 
     public function uniqueId(): string
@@ -53,6 +65,10 @@ final class ExecuteRecheckComparisonJob implements ShouldQueue, ShouldBeUnique
      */
     public function handle(): array
     {
+        $orgId = $this->resolvedOrganizationId();
+        if ($orgId !== null && class_exists(\App\Support\TenantRlsContext::class) && \App\Support\TenantRlsContext::currentOrganizationId() === null) {
+            \App\Support\TenantRlsContext::set($orgId);
+        }
         return WorkerSupervisorClient::executeAuxAction([
             'action' => 'compare',
             'baseline_report' => $this->baselineReport,

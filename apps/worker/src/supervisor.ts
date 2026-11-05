@@ -82,6 +82,8 @@ export interface SupervisorExecuteScanResult {
 export interface SupervisorCancelResult {
   terminated: boolean;
   process_terminated: boolean;
+  container_terminated?: boolean;
+  container_name?: string | null;
   terminated_pid: number | null;
   scan_id: string;
   status: 'cancelled';
@@ -425,11 +427,47 @@ export class WorkerSupervisorService {
     payload: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const bridgeScript = resolve(process.cwd(), 'scripts/api-worker-bridge.ts');
+    const useEphemeralDocker =
+      process.env.HEGOSENTINEL_EPHEMERAL_DOCKER_WORKER === '1' &&
+      activeRecord !== undefined;
+    const workerImage =
+      process.env.HEGOSENTINEL_WORKER_IMAGE ?? 'hegosentinel-worker:ci';
+
     return new Promise((resolvePromise) => {
-      const child = spawn(process.execPath, ['--experimental-strip-types', bridgeScript], {
-        cwd: process.cwd(),
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
+      const child = useEphemeralDocker
+        ? spawn(
+            'docker',
+            [
+              'run',
+              '--rm',
+              '-i',
+              '--init',
+              '--name',
+              activeRecord.container_name,
+              '--network=none',
+              '--user=65532:65532',
+              '--read-only',
+              '--cap-drop=ALL',
+              '--security-opt=no-new-privileges:true',
+              '--pids-limit=64',
+              '--memory=536870912',
+              '--cpus=1.0',
+              '--tmpfs',
+              '/tmp:rw,nosuid,nodev,noexec,size=67108864',
+              workerImage,
+              'node',
+              '--experimental-strip-types',
+              './scripts/api-worker-bridge.ts'
+            ],
+            {
+              cwd: process.cwd(),
+              stdio: ['pipe', 'pipe', 'pipe']
+            }
+          )
+        : spawn(process.execPath, ['--experimental-strip-types', bridgeScript], {
+            cwd: process.cwd(),
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
 
       this.activeProcesses.set(scanId, child);
       if (activeRecord && typeof child.pid === 'number') {
@@ -555,10 +593,30 @@ export class WorkerSupervisorService {
       }
     }
 
+    // If an ephemeral Docker container was launched for this scan, kill and remove it immediately (<2000ms SLA)
+    const targetContainerName = active?.container_name ?? params.container_id ?? null;
+    let containerTerminated = false;
+    if (
+      targetContainerName &&
+      (process.env.HEGOSENTINEL_EPHEMERAL_DOCKER_WORKER === '1' || params.container_id)
+    ) {
+      try {
+        const killOut = spawnSync('docker', ['rm', '-f', '--volumes', targetContainerName], {
+          stdio: 'pipe',
+          timeout: 1500
+        });
+        containerTerminated = killOut.status === 0;
+      } catch {
+        containerTerminated = false;
+      }
+    }
+
     const elapsedMs = Math.max(1, Math.round(performance.now() - startMs));
     return {
       terminated: true,
-      process_terminated: processTerminated,
+      process_terminated: processTerminated || containerTerminated,
+      container_terminated: containerTerminated,
+      container_name: targetContainerName,
       terminated_pid: targetPid,
       scan_id: params.scan_id,
       status: 'cancelled',

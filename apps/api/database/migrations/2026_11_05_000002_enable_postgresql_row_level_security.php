@@ -33,6 +33,7 @@ final class EnablePostgresqlRowLevelSecurity
             'scope_authorization_grants',
             'scan_runs',
             'scan_queue_jobs',
+            'failed_jobs',
             'findings',
             'false_positive_suppressions',
             'remediation_tasks',
@@ -80,6 +81,7 @@ final class EnablePostgresqlRowLevelSecurity
             ['scan_runs', 'fk_scan_runs_org', 'organization_id', 'organizations', 'id'],
             ['scan_runs', 'fk_scan_runs_proj', 'project_id', 'projects', 'id'],
             ['scan_queue_jobs', 'fk_scan_queue_jobs_org', 'organization_id', 'organizations', 'id'],
+            ['failed_jobs', 'fk_failed_jobs_org', 'organization_id', 'organizations', 'id'],
             ['findings', 'fk_findings_org', 'organization_id', 'organizations', 'id'],
             ['findings', 'fk_findings_proj', 'project_id', 'projects', 'id'],
             ['findings', 'fk_findings_scan', 'scan_run_id', 'scan_runs', 'id'],
@@ -193,6 +195,45 @@ final class EnablePostgresqlRowLevelSecurity
                     )
                 )
         ");
+
+        // 5. Narrow SECURITY DEFINER functions for pre-tenant-binding login & Bearer token resolution under hegosentinel_app
+        $pdo->exec("
+            CREATE OR REPLACE FUNCTION hegosentinel_resolve_token_session(p_token_hash VARCHAR)
+            RETURNS TABLE(
+                token_hash VARCHAR,
+                user_id VARCHAR,
+                organization_id VARCHAR,
+                expires_at VARCHAR,
+                revoked_at VARCHAR
+            )
+            LANGUAGE sql
+            SECURITY DEFINER
+            SET search_path = public
+            AS \$\$
+                SELECT s.token_hash, s.user_id, s.organization_id, s.expires_at, s.revoked_at
+                FROM public.user_sessions s
+                WHERE s.token_hash = p_token_hash
+                  AND s.revoked_at IS NULL
+                LIMIT 1;
+            \$\$;
+        ");
+        $pdo->exec('GRANT EXECUTE ON FUNCTION hegosentinel_resolve_token_session(VARCHAR) TO hegosentinel_app');
+
+        $pdo->exec("
+            CREATE OR REPLACE FUNCTION hegosentinel_resolve_user_org_for_login(p_user_id VARCHAR)
+            RETURNS VARCHAR
+            LANGUAGE sql
+            SECURITY DEFINER
+            SET search_path = public
+            AS \$\$
+                SELECT m.organization_id
+                FROM public.organization_members m
+                WHERE m.user_id = p_user_id
+                ORDER BY m.created_at ASC
+                LIMIT 1;
+            \$\$;
+        ");
+        $pdo->exec('GRANT EXECUTE ON FUNCTION hegosentinel_resolve_user_org_for_login(VARCHAR) TO hegosentinel_app');
     }
 }
 

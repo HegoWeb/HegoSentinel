@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Route;
  */
 $manifest = [
     ['method' => 'GET',   'uri' => '/health',                               'action' => [PlatformApiController::class, 'handleLaravelRequest']],
+    ['method' => 'GET',   'uri' => '/readiness',                            'action' => [PlatformApiController::class, 'handleLaravelRequest']],
     ['method' => 'GET',   'uri' => '/api/v1/health',                        'action' => [PlatformApiController::class, 'handleLaravelRequest']],
+    ['method' => 'GET',   'uri' => '/api/v1/readiness',                     'action' => [PlatformApiController::class, 'handleLaravelRequest']],
     ['method' => 'POST',  'uri' => '/api/v1/auth/login',                    'action' => [PlatformApiController::class, 'handleLaravelRequest']],
     ['method' => 'POST',  'uri' => '/api/v1/auth/register',                 'action' => [PlatformApiController::class, 'handleLaravelRequest']],
     ['method' => 'POST',  'uri' => '/api/v1/auth/password-reset',           'action' => [PlatformApiController::class, 'handleLaravelRequest']],

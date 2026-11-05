@@ -41,9 +41,21 @@ final class ExecuteAuthorizedScanJob implements ShouldQueue, ShouldBeUnique
         public readonly string $mode,
         public readonly ?string $repositoryPath = null,
         public readonly string $fixtureVariant = 'baseline',
-        public readonly bool $isCancelled = false
+        public readonly bool $isCancelled = false,
+        public readonly ?string $organizationId = null
     ) {
         $this->onQueue('hegosentinel-scans');
+    }
+
+    public function resolvedOrganizationId(): ?string
+    {
+        if ($this->organizationId !== null && trim($this->organizationId) !== '') {
+            return trim($this->organizationId);
+        }
+        if (isset($this->grant['organization_id']) && is_string($this->grant['organization_id']) && trim($this->grant['organization_id']) !== '') {
+            return trim($this->grant['organization_id']);
+        }
+        return null;
     }
 
     public function uniqueId(): string
@@ -56,6 +68,10 @@ final class ExecuteAuthorizedScanJob implements ShouldQueue, ShouldBeUnique
      */
     public function handle(): array
     {
+        $orgId = $this->resolvedOrganizationId();
+        if ($orgId !== null && class_exists(\App\Support\TenantRlsContext::class) && \App\Support\TenantRlsContext::currentOrganizationId() === null) {
+            \App\Support\TenantRlsContext::set($orgId);
+        }
         return self::dispatchSyncOrQueue(
             $this->grant,
             $this->scanId,

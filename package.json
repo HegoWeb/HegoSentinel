@@ -35,6 +35,9 @@
     "build:web": "npm --prefix apps/web run build",
     "test": "node --experimental-strip-types --test ./tests/unit/checks-and-recheck.test.ts ./tests/security/security-matrix.test.ts ./tests/security/audit-regression.test.ts ./tests/integration/adapters-and-reports.test.ts ./tests/e2e/cli-demo.test.ts ./tests/e2e/web-api-platform.test.ts ./tests/security/independent-boundary-audit.test.ts ./tests/security/cookie-csp-identity-regression.test.ts ./tests/security/worker-containment-and-sprint2.test.ts ./tests/security/broker-b2-regression.test.ts ./tests/security/worker-supervisor-isolation.test.ts",
     "docs:links": "node --experimental-strip-types ./scripts/check-markdown-links.ts",
+    "test:staging": "php apps/api/tests/run-sprint11-staging-resilience-tests.php",
+    "sbom:generate": "node --experimental-strip-types ./scripts/generate-sbom-and-supply-chain-audit.ts",
+    "verify:staging-gates": "node --experimental-strip-types ./scripts/verify-staging-gates.ts",
     "verify:gates": "node --experimental-strip-types ./scripts/verify-all-security-gates.ts",
     "verify:release-gate": "node --experimental-strip-types ./scripts/release-gate-check.ts"
   },

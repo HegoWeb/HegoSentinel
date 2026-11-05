@@ -48,8 +48,13 @@ final class DispatchApprovedNotificationJob implements ShouldQueue, ShouldBeUniq
      */
     public function handle(): array
     {
+        if ($this->organizationId !== '' && class_exists(\App\Support\TenantRlsContext::class) && \App\Support\TenantRlsContext::currentOrganizationId() === null) {
+            \App\Support\TenantRlsContext::set($this->organizationId);
+        }
         return [
             'notification_id' => $this->notificationId,
+            'organization_id' => $this->organizationId,
+            'project_id' => $this->projectId,
             'queue' => 'hegosentinel-notifications',
             'status' => 'dispatched',
             'dispatched_at' => gmdate('Y-m-d\TH:i:s\Z'),

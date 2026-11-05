@@ -166,10 +166,28 @@ final class CreateHegosentinelPlatformTables
                 idempotency_key VARCHAR(128) DEFAULT NULL,
                 worker_pid INTEGER DEFAULT NULL,
                 supervisor_container_id VARCHAR(128) DEFAULT NULL,
+                horizon_supervisor VARCHAR(64) DEFAULT \'supervisor-scans\',
+                redis_queue_id VARCHAR(128) DEFAULT NULL,
+                container_started_at VARCHAR(40) DEFAULT NULL,
+                container_finished_at VARCHAR(40) DEFAULT NULL,
+                resource_limits_json TEXT DEFAULT NULL,
                 heartbeat_at VARCHAR(40) DEFAULT NULL,
                 dispatched_at VARCHAR(40) NOT NULL,
                 finished_at VARCHAR(40) DEFAULT NULL,
                 error_message TEXT DEFAULT NULL
+            )',
+
+            'CREATE TABLE IF NOT EXISTS failed_jobs (
+                id VARCHAR(64) PRIMARY KEY,
+                uuid VARCHAR(64) NOT NULL UNIQUE,
+                organization_id VARCHAR(64) NOT NULL,
+                project_id VARCHAR(64) DEFAULT NULL,
+                scan_run_id VARCHAR(64) DEFAULT NULL,
+                connection VARCHAR(32) NOT NULL DEFAULT \'redis\',
+                queue VARCHAR(64) NOT NULL,
+                payload_json TEXT NOT NULL,
+                exception TEXT NOT NULL,
+                failed_at VARCHAR(40) NOT NULL
             )',
 
             // 8. Normalized Security Findings & Scoped Suppressions
@@ -332,6 +350,11 @@ final class CreateHegosentinelPlatformTables
             ['scan_queue_jobs', 'timeout_seconds', 'INTEGER NOT NULL DEFAULT 90'],
             ['scan_queue_jobs', 'idempotency_key', 'VARCHAR(128) DEFAULT NULL'],
             ['scan_queue_jobs', 'supervisor_container_id', 'VARCHAR(128) DEFAULT NULL'],
+            ['scan_queue_jobs', 'horizon_supervisor', "VARCHAR(64) DEFAULT 'supervisor-scans'"],
+            ['scan_queue_jobs', 'redis_queue_id', 'VARCHAR(128) DEFAULT NULL'],
+            ['scan_queue_jobs', 'container_started_at', 'VARCHAR(40) DEFAULT NULL'],
+            ['scan_queue_jobs', 'container_finished_at', 'VARCHAR(40) DEFAULT NULL'],
+            ['scan_queue_jobs', 'resource_limits_json', 'TEXT DEFAULT NULL'],
             ['scan_queue_jobs', 'heartbeat_at', 'VARCHAR(40) DEFAULT NULL'],
             ['emergency_stop_events', 'cancellation_latency_ms', 'INTEGER NOT NULL DEFAULT 0'],
         ];

@@ -200,3 +200,4 @@ fs.writeFileSync(process.env.EVIDENCE_FILE, JSON.stringify(doc, null, 2) + "\n",
 '
 
 echo "[OK] Saved Sprint 10 Docker Compose evidence to ${EVIDENCE_FILE}"
+
