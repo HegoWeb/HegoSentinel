@@ -36,15 +36,15 @@ export default function HegoSentinelPlatformPage() {
   const [projName, setProjName] = useState('HegoCloud Edge Gateway');
   const [projEnv, setProjEnv] = useState('staging');
   const [projStack, setProjStack] = useState('laravel');
-  const [projHost, setProjHost] = useState('edge.hegoweb.local');
+  const [projHost, setProjHost] = useState('demo.example.test');
   const [projRepo, setProjRepo] = useState('examples/synthetic-targets/laravel-app');
   const [projPermRef, setProjPermRef] = useState('PERM-HEGO-2026-S10-900');
   const [projDnsProof, setProjDnsProof] = useState('hegosentinel-verify=edge-2026');
-  const [grantProjectId, setGrantProjectId] = useState('proj-hegoweb-core');
+  const [grantProjectId, setGrantProjectId] = useState('proj-laravel-commerce');
   const [grantPermRef, setGrantPermRef] = useState('PERM-HEGO-2026-V2');
 
   // Screen 03: Scanner form state
-  const [scanProjectId, setScanProjectId] = useState('proj-hegoweb-core');
+  const [scanProjectId, setScanProjectId] = useState('proj-laravel-commerce');
   const [scanMode, setScanMode] = useState<'offline-fixture' | 'restricted-remote'>('offline-fixture');
   const [scanVariant, setScanVariant] = useState<'baseline' | 'patched'>('baseline');
   const [isScanning, setIsScanning] = useState(false);
@@ -91,6 +91,18 @@ export default function HegoSentinelPlatformPage() {
   };
 
   const refreshAll = useCallback(async () => {
+    const meRes = await api.request<Record<string, unknown>>('GET', '/api/v1/auth/me');
+    if (!meRes.ok) {
+      api.setSessionToken(null);
+      try {
+        window.localStorage.removeItem('hs_session_token');
+      } catch {
+        // Ignore storage errors
+      }
+      setPrincipal(null);
+      return;
+    }
+
     const [dashRes, projRes, scanRes, findRes, taskRes, rechRes, notifRes, orgRes, audRes] =
       await Promise.all([
         api.request<Record<string, unknown>>('GET', '/api/v1/dashboard'),
@@ -112,7 +124,7 @@ export default function HegoSentinelPlatformPage() {
     if (projRes.ok && Array.isArray(projRes.data)) {
       setProjects(projRes.data);
       if (projRes.data.length > 0 && !grantProjectId) {
-        const firstId = String(projRes.data[0].id ?? 'proj-hegoweb-core');
+        const firstId = String(projRes.data[0].id ?? 'proj-laravel-commerce');
         setGrantProjectId(firstId);
         setScanProjectId(firstId);
       }
@@ -121,10 +133,10 @@ export default function HegoSentinelPlatformPage() {
       setScans(scanRes.data);
       if (scanRes.data.length > 0) {
         const firstScan = String(scanRes.data[0].id ?? '');
-        const lastScan = String(scanRes.data[scanRes.data.length - 1].id ?? firstScan);
-        setReportScanId((prev) => prev || firstScan);
-        setCurrentScanId((prev) => prev || firstScan);
-        setBaselineScanId((prev) => prev || lastScan);
+        const secondScan = String(scanRes.data[1]?.id ?? scanRes.data[scanRes.data.length - 1].id ?? firstScan);
+        setReportScanId(firstScan);
+        setCurrentScanId(firstScan);
+        setBaselineScanId(secondScan);
       }
     }
     if (findRes.ok && Array.isArray(findRes.data)) setFindings(findRes.data);
@@ -216,7 +228,6 @@ export default function HegoSentinelPlatformPage() {
     }
     setPrincipal(null);
     notifyUser('ok', 'Oturum güvenli şekilde kapatıldı.');
-    await refreshAll();
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
@@ -224,7 +235,7 @@ export default function HegoSentinelPlatformPage() {
     const res = await api.request<Record<string, unknown>>('POST', '/api/v1/projects', {
       name: projName,
       environment: projEnv,
-      stack: projStack,
+      stack: [projStack],
       hostname: projHost,
       repository_path: projRepo,
       written_permission_ref: projPermRef,
@@ -234,6 +245,11 @@ export default function HegoSentinelPlatformPage() {
       notifyUser('err', res.message ?? 'Proje oluşturulamadı.');
       return;
     }
+    const createdId = String(res.data?.id ?? '');
+    if (createdId) {
+      setGrantProjectId(createdId);
+      setScanProjectId(createdId);
+    }
     notifyUser('ok', `Yetkili proje ve kapsam izni oluşturuldu: ${projName}`);
     await refreshAll();
   };
@@ -242,11 +258,13 @@ export default function HegoSentinelPlatformPage() {
     e.preventDefault();
     const res = await api.request<Record<string, unknown>>(
       'POST',
-      `/api/v1/projects/${encodeURIComponent(grantProjectId)}/scope-grants`,
+      `/api/v1/projects/${encodeURIComponent(grantProjectId)}/grants`,
       {
         written_permission_ref: grantPermRef,
+        domain_control_proof: projDnsProof,
+        hostname: projHost,
         authorization_statement: 'Authorized offline and passive web assessment under Sprint 10.',
-        max_request_budget: 30
+        max_request_budget: 25
       }
     );
     if (!res.ok) {
@@ -353,7 +371,7 @@ export default function HegoSentinelPlatformPage() {
     e.preventDefault();
     const res = await api.request<Record<string, unknown>>('POST', '/api/v1/notifications', {
       project_id: scanProjectId,
-      scan_id: reportScanId || undefined,
+      scan_run_id: reportScanId || undefined,
       channel: notifyChannel,
       recipient: notifyRecipient,
       summary: notifySummary
@@ -391,11 +409,11 @@ export default function HegoSentinelPlatformPage() {
 
   const latestScan = scans[0] as Record<string, unknown> | undefined;
   const latestReport = (latestScan?.report ?? null) as Record<string, unknown> | null;
-  const latestCoverageChecks = Array.isArray(
-    (latestReport?.coverage as Record<string, unknown> | undefined)?.checks
-  )
-    ? ((latestReport?.coverage as Record<string, unknown>).checks as Array<Record<string, unknown>>)
-    : [];
+  const latestCoverageChecks = Array.isArray(latestScan?.coverage_checks)
+    ? (latestScan.coverage_checks as Array<Record<string, unknown>>)
+    : Array.isArray((latestReport?.coverage as Record<string, unknown> | undefined)?.checks)
+      ? ((latestReport?.coverage as Record<string, unknown>).checks as Array<Record<string, unknown>>)
+      : [];
 
   const auditEntries = Array.isArray(auditLogs?.entries)
     ? (auditLogs?.entries as Array<Record<string, unknown>>)
@@ -1032,8 +1050,8 @@ export default function HegoSentinelPlatformPage() {
                           <span className="hs-badge mono">{String(f.verification_status)}</span>
                         </div>
                       </div>
-                      <p className="hs-text-muted">{String(f.affected_component)}</p>
-                      <pre className="hs-code-block">{String(f.redacted_evidence)}</pre>
+                      <p className="hs-text-muted">{String(f.affected_component ?? '')}</p>
+                      <pre className="hs-code-block">{String(f.evidence_summary ?? f.redacted_evidence ?? '')}</pre>
                       <div className="hs-row-wrap">
                         <input
                           className="hs-input"
@@ -1080,13 +1098,13 @@ export default function HegoSentinelPlatformPage() {
                       <div className="hs-panel-header">
                         <div className="hs-row-wrap">
                           <span className="hs-badge lime">{String(task.status)}</span>
-                          <span className="hs-badge mono">{String(task.stack)}</span>
+                          <span className="hs-badge mono">{String(task.framework ?? task.stack ?? 'laravel')}</span>
                           <strong>{String(task.title)}</strong>
                         </div>
-                        <span className="mono hs-text-xs">Atanan: {String(task.assigned_to)}</span>
+                        <span className="mono hs-text-xs">Atanan: {String(task.assigned_to_name ?? task.assigned_to ?? 'Demo Developer')}</span>
                       </div>
-                      <p className="hs-text-muted">{String(task.root_cause)}</p>
-                      <pre className="hs-code-block">{String(task.code_patch)}</pre>
+                      <p className="hs-text-muted">{String(task.guidance_summary ?? task.root_cause ?? '')}</p>
+                      <pre className="hs-code-block">{String(task.code_patch_example ?? task.code_patch ?? '')}</pre>
                       <div className="hs-row-wrap">
                         <button
                           type="button"
@@ -1183,17 +1201,20 @@ export default function HegoSentinelPlatformPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rechecks.map((rc) => (
-                      <tr key={String(rc.id)}>
-                        <th>{String(rc.id)}</th>
-                        <td className="mono">{String(rc.baseline_scan_id)}</td>
-                        <td className="mono">{String(rc.current_scan_id)}</td>
-                        <td><span className="hs-badge lime">{String(rc.fixed_count)}</span></td>
-                        <td><span className="hs-badge">{String(rc.remaining_count)}</span></td>
-                        <td><span className="hs-badge critical">{String(rc.regressed_count)}</span></td>
-                        <td><span className="hs-badge">{String(rc.suppressed_count)}</span></td>
-                      </tr>
-                    ))}
+                    {rechecks.map((rc) => {
+                      const counts = (rc.counts as Record<string, unknown> | undefined) ?? {};
+                      return (
+                        <tr key={String(rc.id)}>
+                          <th>{String(rc.id)}</th>
+                          <td className="mono">{String(rc.baseline_scan_id)}</td>
+                          <td className="mono">{String(rc.current_scan_id)}</td>
+                          <td><span className="hs-badge lime">{String(counts.verified_fixed ?? rc.fixed_count ?? 0)}</span></td>
+                          <td><span className="hs-badge">{String(counts.still_open ?? rc.remaining_count ?? 0)}</span></td>
+                          <td><span className="hs-badge critical">{String(counts.reintroduced ?? rc.regressed_count ?? 0)}</span></td>
+                          <td><span className="hs-badge">{String(counts.false_positive ?? rc.suppressed_count ?? 0)}</span></td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1405,11 +1426,11 @@ export default function HegoSentinelPlatformPage() {
                   </thead>
                   <tbody>
                     {auditEntries.slice(0, 12).map((entry) => (
-                      <tr key={String(entry.id)}>
+                      <tr key={String(entry.id ?? entry.sequence)}>
                         <th className="mono">{String(entry.created_at)}</th>
                         <td className="mono">{String(entry.action)}</td>
-                        <td className="mono">{String(entry.target_type)}:{String(entry.target_id)}</td>
-                        <td><span className="hs-badge lime">{String(entry.status)}</span></td>
+                        <td className="mono">{String(entry.project_id ?? 'org')}</td>
+                        <td><span className="hs-badge lime">{String(entry.decision ?? entry.status ?? 'allow')}</span></td>
                         <td className="mono">{String(entry.entry_hash ?? '').slice(0, 20)}…</td>
                       </tr>
                     ))}

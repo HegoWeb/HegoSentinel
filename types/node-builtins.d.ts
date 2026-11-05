@@ -1,4 +1,6 @@
 declare namespace NodeJS {
+  type Signals = string;
+
   interface ErrnoException extends Error {
     errno?: number;
     code?: string;
@@ -12,17 +14,25 @@ declare namespace NodeJS {
 
   interface WriteStream {
     write(chunk: string): boolean;
+    end(chunk?: string): void;
+  }
+
+  interface ReadStream {
+    on(event: 'data', listener: (chunk: Buffer | string) => void): this;
+    on(event: string, listener: (...args: any[]) => void): this;
   }
 }
 
 interface Process {
   argv: string[];
+  execPath: string;
   env: NodeJS.ProcessEnv;
   platform: string;
   version: string;
   cwd(): string;
   getuid?(): number;
   getgid?(): number;
+  kill(pid: number, signal?: string | number): boolean;
   exitCode?: number;
   exit(code?: number): never;
   stdout: NodeJS.WriteStream;
@@ -119,12 +129,18 @@ declare module 'node:child_process' {
     cwd?: string;
     env?: NodeJS.ProcessEnv;
     killSignal?: string;
+    stdio?: string | readonly string[];
   }
   export interface ChildProcess {
     pid?: number;
     exitCode?: number | null;
     killed: boolean;
-    kill(signal?: string): boolean;
+    stdin: NodeJS.WriteStream;
+    stdout: NodeJS.ReadStream;
+    stderr: NodeJS.ReadStream;
+    kill(signal?: string | number): boolean;
+    on(event: string, listener: (...args: any[]) => void): this;
+    once(event: string, listener: (...args: any[]) => void): this;
   }
   export function execFile(
     file: string,
@@ -132,6 +148,16 @@ declare module 'node:child_process' {
     options: ExecFileOptions,
     callback: (error: NodeJS.ErrnoException | null, stdout: string, stderr: string) => void
   ): ChildProcess;
+  export function spawn(
+    command: string,
+    args?: readonly string[],
+    options?: ExecFileOptions
+  ): ChildProcess;
+  export function spawnSync(
+    command: string,
+    args?: readonly string[],
+    options?: ExecFileOptions
+  ): { status: number | null; stdout: Buffer | string; stderr: Buffer | string };
 }
 
 declare module 'node:http' {

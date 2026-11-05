@@ -1,7 +1,8 @@
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ScopeAuthorizationGrant } from '../../../packages/findings-schema/src/index.ts';
+import type { ScanReport, ScopeAuthorizationGrant } from '../../../packages/findings-schema/src/index.ts';
 import { validateScopeAuthorizationGrant, type PolicyDecision } from '../../../packages/policy-engine/src/index.ts';
 import {
   buildDockerRunArgsForSourceOffline,
@@ -43,9 +44,12 @@ export interface SupervisorExecuteScanRequest {
   mode: 'offline-fixture' | 'restricted-remote';
   grant: ScopeAuthorizationGrant;
   repository_path?: string | null;
+  fixture_variant?: 'baseline' | 'patched';
+  simulated_duration_ms?: number;
   extra_env?: Record<string, string>;
   command_args?: string[];
   execute_docker_if_available?: boolean;
+  execute_worker_bridge?: boolean;
 }
 
 export interface SupervisorExecuteScanResult {
@@ -56,9 +60,12 @@ export interface SupervisorExecuteScanResult {
   scan_id: string;
   supervisor_isolated_from_api: boolean;
   api_mounts_docker_socket: false;
+  worker_pid?: number | null;
+  container_name?: string;
   docker_args?: string[];
   container_policy_digest?: string;
   attestation?: WorkerCapabilityAttestation;
+  report?: ScanReport;
   pinned_versions: {
     semgrep: string;
     trivy: string;
@@ -74,6 +81,8 @@ export interface SupervisorExecuteScanResult {
 
 export interface SupervisorCancelResult {
   terminated: boolean;
+  process_terminated: boolean;
+  terminated_pid: number | null;
   scan_id: string;
   status: 'cancelled';
   latency_ms: number;
@@ -99,6 +108,7 @@ export class WorkerSupervisorService {
   private readonly trustedSigners: Record<string, string>;
   private readonly replayRegistry = new NonceReplayRegistry();
   private readonly activeScans = new Map<string, ActiveSupervisedScan>();
+  private readonly activeProcesses = new Map<string, ChildProcess>();
   private readonly cancelledScanIds = new Set<string>();
   private readonly containerPolicy: WorkerContainerPolicy;
   private readonly sourceOfflineManifest: SourceOfflineRuntimeManifest;
@@ -325,6 +335,62 @@ export class WorkerSupervisorService {
       }
     }
 
+    let report: ScanReport | undefined;
+    if (request.execute_worker_bridge) {
+      const bridgeOut = await this.runBridgeSubprocess(request.scan_id, activeRecord, {
+        action: 'scan',
+        scan_id: request.scan_id,
+        mode: request.mode,
+        grant: request.grant,
+        repository_path: repoPath,
+        fixture_variant: request.fixture_variant ?? 'baseline',
+        simulated_duration_ms: request.simulated_duration_ms
+      });
+
+      if (this.cancelledScanIds.has(request.scan_id) || bridgeOut.cancelled) {
+        activeRecord.status = 'cancelled';
+        activeRecord.heartbeat_at = new Date().toISOString();
+        return {
+          allowed: false,
+          cancelled: true,
+          reason: 'scan_cancelled',
+          detail: `Scan "${request.scan_id}" terminated mid-execution by Emergency Stop (SIGTERM -> SIGKILL)`,
+          scan_id: request.scan_id,
+          supervisor_isolated_from_api: true,
+          api_mounts_docker_socket: false,
+          worker_pid: activeRecord.worker_pid,
+          container_name: activeRecord.container_name,
+          docker_args: dockerBuild.args,
+          container_policy_digest: policyValidation.policyDigest,
+          attestation,
+          pinned_versions: pinnedVersions
+        };
+      }
+
+      if (!bridgeOut.allowed) {
+        activeRecord.status = 'failed';
+        activeRecord.heartbeat_at = new Date().toISOString();
+        return {
+          allowed: false,
+          cancelled: false,
+          reason: (bridgeOut.reason as string | undefined) ?? 'worker_subprocess_failed',
+          detail: (bridgeOut.detail as string | undefined) ?? 'Worker bridge denied or failed scan',
+          scan_id: request.scan_id,
+          supervisor_isolated_from_api: true,
+          api_mounts_docker_socket: false,
+          worker_pid: activeRecord.worker_pid,
+          container_name: activeRecord.container_name,
+          docker_args: dockerBuild.args,
+          container_policy_digest: policyValidation.policyDigest,
+          attestation,
+          report: bridgeOut.report as ScanReport | undefined,
+          pinned_versions: pinnedVersions
+        };
+      }
+
+      report = bridgeOut.report as ScanReport | undefined;
+    }
+
     if (!this.cancelledScanIds.has(request.scan_id)) {
       activeRecord.status = 'completed';
       activeRecord.heartbeat_at = new Date().toISOString();
@@ -337,17 +403,98 @@ export class WorkerSupervisorService {
       scan_id: request.scan_id,
       supervisor_isolated_from_api: true,
       api_mounts_docker_socket: false,
+      worker_pid: activeRecord.worker_pid,
+      container_name: activeRecord.container_name,
       docker_args: dockerBuild.args,
       container_policy_digest: policyValidation.policyDigest,
       attestation,
+      report,
       pinned_versions: pinnedVersions,
       docker_runtime: dockerRuntime
     };
   }
 
+  public async executeAuxiliaryAction(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const auxId = `AUX-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    return this.runBridgeSubprocess(auxId, undefined, payload);
+  }
+
+  private async runBridgeSubprocess(
+    scanId: string,
+    activeRecord: ActiveSupervisedScan | undefined,
+    payload: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const bridgeScript = resolve(process.cwd(), 'scripts/api-worker-bridge.ts');
+    return new Promise((resolvePromise) => {
+      const child = spawn(process.execPath, ['--experimental-strip-types', bridgeScript], {
+        cwd: process.cwd(),
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      this.activeProcesses.set(scanId, child);
+      if (activeRecord && typeof child.pid === 'number') {
+        activeRecord.worker_pid = child.pid;
+      }
+
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (chunk: unknown) => {
+        stdout += String(chunk);
+      });
+      child.stderr.on('data', (chunk: unknown) => {
+        stderr += String(chunk);
+      });
+
+      child.on('error', (err: Error) => {
+        this.activeProcesses.delete(scanId);
+        resolvePromise({
+          allowed: false,
+          cancelled: this.cancelledScanIds.has(scanId),
+          reason: 'worker_subprocess_failed',
+          detail: err.message
+        });
+      });
+
+      child.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
+        this.activeProcesses.delete(scanId);
+        if (this.cancelledScanIds.has(scanId) || signal === 'SIGTERM' || signal === 'SIGKILL') {
+          resolvePromise({
+            allowed: false,
+            cancelled: true,
+            reason: 'scan_cancelled',
+            detail: `Worker process (pid=${child.pid ?? 'unknown'}) terminated by Emergency Stop`
+          });
+          return;
+        }
+        if (code !== 0 || !stdout.trim()) {
+          resolvePromise({
+            allowed: false,
+            cancelled: false,
+            reason: 'worker_subprocess_failed',
+            detail: `Worker exited with code ${code}: ${stderr.trim()}`
+          });
+          return;
+        }
+        try {
+          resolvePromise(JSON.parse(stdout.trim()) as Record<string, unknown>);
+        } catch {
+          resolvePromise({
+            allowed: false,
+            cancelled: false,
+            reason: 'worker_invalid_json',
+            detail: 'Worker returned invalid JSON'
+          });
+        }
+      });
+
+      child.stdin.write(JSON.stringify(payload));
+      child.stdin.end();
+    });
+  }
+
   /**
    * Emergency Stop: Revokes running scan authorization, terminates worker container/process (`SIGTERM -> SIGKILL`),
-   * and records permanent cancellation so the scan cannot be restarted (`< 2000ms` SLA).
+   * waits for OS process exit, and records permanent cancellation so the scan cannot be restarted (`< 2000ms` SLA).
    */
   public async cancelScan(params: {
     scan_id: string;
@@ -363,9 +510,56 @@ export class WorkerSupervisorService {
       active.heartbeat_at = new Date().toISOString();
     }
 
+    const child = this.activeProcesses.get(params.scan_id);
+    const targetPid = child?.pid ?? active?.worker_pid ?? params.worker_pid ?? null;
+    let processTerminated = false;
+
+    if (child && child.exitCode === null && !child.killed) {
+      const exitPromise = new Promise<void>((resolveExit) => {
+        child.once('close', () => resolveExit());
+        child.once('exit', () => resolveExit());
+      });
+
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // Ignore if already exiting
+      }
+
+      if (process.platform === 'win32' && typeof child.pid === 'number') {
+        spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore' });
+      } else {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          // Ignore if already dead
+        }
+      }
+
+      await Promise.race([
+        exitPromise,
+        new Promise<void>((resolveTimeout) => setTimeout(resolveTimeout, 1500))
+      ]);
+      this.activeProcesses.delete(params.scan_id);
+      processTerminated = true;
+    } else if (typeof targetPid === 'number' && targetPid > 0) {
+      try {
+        if (process.platform === 'win32') {
+          spawnSync('taskkill', ['/F', '/T', '/PID', String(targetPid)], { stdio: 'ignore' });
+        } else {
+          process.kill(targetPid, 'SIGKILL');
+        }
+        processTerminated = true;
+      } catch {
+        processTerminated = false;
+      }
+    }
+
     const elapsedMs = Math.max(1, Math.round(performance.now() - startMs));
     return {
       terminated: true,
+      process_terminated: processTerminated,
+      terminated_pid: targetPid,
       scan_id: params.scan_id,
       status: 'cancelled',
       latency_ms: elapsedMs,
@@ -513,12 +707,32 @@ export async function dispatchWorkerSupervisorHttpRequest(
       scan_id: scanId,
       mode,
       grant,
-      repository_path: typeof body.repository_path === 'string' ? body.repository_path : null
+      repository_path: typeof body.repository_path === 'string' ? body.repository_path : null,
+      fixture_variant: body.fixture_variant === 'patched' ? 'patched' : 'baseline',
+      simulated_duration_ms: typeof body.simulated_duration_ms === 'number' ? body.simulated_duration_ms : undefined,
+      execute_worker_bridge: body.execute_worker_bridge === true || typeof body.fixture_variant === 'string' || typeof body.simulated_duration_ms === 'number'
     });
     return {
       statusCode: result.allowed ? 200 : 403,
       body: result as unknown as Record<string, unknown>
     };
+  }
+
+  if (method === 'POST' && url.pathname === '/v1/supervisor/aux') {
+    const out = await supervisor.executeAuxiliaryAction(body);
+    return {
+      statusCode: 200,
+      body: out
+    };
+  }
+
+  if (method === 'GET' && url.pathname.startsWith('/v1/supervisor/scans/')) {
+    const scanId = decodeURIComponent(url.pathname.slice('/v1/supervisor/scans/'.length));
+    const active = supervisor.getActiveScan(scanId);
+    if (!active) {
+      return { statusCode: 404, body: { ok: false, error: 'Active scan not found' } };
+    }
+    return { statusCode: 200, body: { ok: true, scan: active } };
   }
 
   return { statusCode: 404, body: { ok: false, error: 'Supervisor route not found' } };

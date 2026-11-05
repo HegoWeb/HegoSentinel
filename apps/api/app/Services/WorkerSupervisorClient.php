@@ -66,12 +66,23 @@ final class WorkerSupervisorClient
             'grant' => $grant,
             'repository_path' => $repositoryPath,
             'fixture_variant' => $fixtureVariant,
+            'execute_worker_bridge' => true,
         ];
 
         // 1. Try HTTP Worker Supervisor daemon first if reachable
         $httpRes = self::trySupervisorHttp('/v1/supervisor/execute', $payload, 15);
         if (is_array($httpRes)) {
             return $httpRes;
+        }
+
+        // Fail-closed when strict supervisor isolation is enforced (e.g. production / outage verification)
+        if (getenv('HEGOSENTINEL_SUPERVISOR_STRICT') === '1') {
+            return [
+                'allowed' => false,
+                'cancelled' => false,
+                'reason' => 'worker_supervisor_unreachable',
+                'detail' => 'Least-Privilege Worker Supervisor is unreachable; failing closed without API host execution',
+            ];
         }
 
         // 2. Fallback to isolated Worker Supervisor CLI (`apps/worker/src/supervisor.ts` / `scripts/api-worker-bridge.ts`)

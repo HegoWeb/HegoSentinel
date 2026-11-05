@@ -137,13 +137,16 @@ final class TenantRlsContext
         }
     }
 
-    public static function applySessionTenantSetting(PDO $pdo, ?string $organizationId): void
+    public static function applySessionTenantSetting(PDO $pdo, ?string $organizationId, bool $switchToAppRole = true): void
     {
         if (!self::isPostgres($pdo)) {
             return;
         }
         $val = ($organizationId !== null && $organizationId !== '') ? $organizationId : '';
         $localOnly = $pdo->inTransaction();
+        if ($switchToAppRole && self::roleExists($pdo, 'hegosentinel_app')) {
+            $pdo->exec($localOnly ? 'SET LOCAL ROLE hegosentinel_app' : 'SET ROLE hegosentinel_app');
+        }
         $stmt = $pdo->prepare('SELECT set_config(\'app.current_organization_id\', :org_id, ' . ($localOnly ? 'true' : 'false') . ')');
         $stmt->execute([':org_id' => $val]);
     }
@@ -154,6 +157,7 @@ final class TenantRlsContext
             return;
         }
         try {
+            $pdo->exec('RESET ROLE');
             $pdo->exec("SELECT set_config('app.current_organization_id', '', false)");
         } catch (Throwable) {
             // Ignore if transaction is in aborted state prior to rollback

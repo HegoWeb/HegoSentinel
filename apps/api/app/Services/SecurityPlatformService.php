@@ -2298,14 +2298,23 @@ final class SecurityPlatformService
      * Verifies the global SHA-256 hash chain across all audit_logs rows.
      * @return array{valid: bool, entries_checked: int, broken_at_sequence?: int}
      */
-    public function verifyAuditChainIntegrity(): array
+    public function verifyAuditChainIntegrity(?string $orgId = null): array
     {
-        $rows = $this->pdo->query('SELECT * FROM audit_logs ORDER BY sequence ASC')->fetchAll();
-        $expectedPrev = str_repeat('0', 64);
+        if ($orgId !== null && $orgId !== '') {
+            $stmt = $this->pdo->prepare('SELECT * FROM audit_logs WHERE organization_id = :org ORDER BY sequence ASC');
+            $stmt->execute([':org' => $orgId]);
+            $rows = $stmt->fetchAll();
+        } else {
+            $rows = $this->pdo->query('SELECT * FROM audit_logs ORDER BY sequence ASC')->fetchAll();
+        }
+        /** @var array<string, string> $expectedPrevByOrg */
+        $expectedPrevByOrg = [];
         $checked = 0;
 
         foreach ($rows as $row) {
             $checked++;
+            $rowOrg = (string) $row['organization_id'];
+            $expectedPrev = $expectedPrevByOrg[$rowOrg] ?? str_repeat('0', 64);
             if ($row['prev_hash'] !== $expectedPrev) {
                 return ['valid' => false, 'entries_checked' => $checked, 'broken_at_sequence' => (int) $row['sequence']];
             }
@@ -2325,7 +2334,7 @@ final class SecurityPlatformService
             if (!hash_equals($computed, (string) $row['entry_hash'])) {
                 return ['valid' => false, 'entries_checked' => $checked, 'broken_at_sequence' => (int) $row['sequence']];
             }
-            $expectedPrev = $computed;
+            $expectedPrevByOrg[$rowOrg] = $computed;
         }
 
         return ['valid' => true, 'entries_checked' => $checked];
@@ -2404,7 +2413,8 @@ final class SecurityPlatformService
         string $outcome,
         string $detail
     ): void {
-        $prevStmt = $this->pdo->query('SELECT entry_hash FROM audit_logs ORDER BY sequence DESC LIMIT 1');
+        $prevStmt = $this->pdo->prepare('SELECT entry_hash FROM audit_logs WHERE organization_id = :org ORDER BY sequence DESC LIMIT 1');
+        $prevStmt->execute([':org' => $orgId]);
         $prevHash = (string) ($prevStmt->fetchColumn() ?: str_repeat('0', 64));
 
         $eventId = 'AUD-' . strtoupper(bin2hex(random_bytes(6)));
