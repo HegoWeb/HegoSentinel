@@ -4,17 +4,68 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use RuntimeException;
+use App\Services\WorkerSupervisorClient;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+
+require_once __DIR__ . '/../Services/WorkerSupervisorClient.php';
 
 /**
- * Isolated Queue Worker Job (Stage 2 / Sprint 8 — S2-02 & Section 5).
- * Never executes untrusted repository hooks or package managers inside the API process.
- * Spawns the hardened TypeScript worker bridge with shell=false, enforces EmergencyStop
- * cancellation (SIGTERM -> SIGKILL), and runs real Semgrep CE (1.183.0) & Trivy (0.76.1)
- * on authorized local repositories or Trusted Egress Broker-verified fixtures.
+ * Isolated Queue Worker Job (Sprint 10 — S10-03 & S10-04).
+ *
+ * Queued on `hegosentinel-scans` under Laravel Horizon.
+ * Delegates container/subprocess execution to `WorkerSupervisorClient` so the Web API process
+ * never mounts `/var/run/docker.sock` or executes untrusted repository code directly.
  */
-final class ExecuteAuthorizedScanJob
+final class ExecuteAuthorizedScanJob implements ShouldQueue, ShouldBeUnique
 {
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+    use SerializesModels;
+
+    public int $tries = 1;
+    public int $timeout = 90;
+    public int $uniqueFor = 120;
+
+    /**
+     * @param array<string, mixed> $grant
+     */
+    public function __construct(
+        public readonly array $grant,
+        public readonly string $scanId,
+        public readonly string $mode,
+        public readonly ?string $repositoryPath = null,
+        public readonly string $fixtureVariant = 'baseline',
+        public readonly bool $isCancelled = false
+    ) {
+        $this->onQueue('hegosentinel-scans');
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->scanId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function handle(): array
+    {
+        return self::dispatchSyncOrQueue(
+            $this->grant,
+            $this->scanId,
+            $this->mode,
+            $this->repositoryPath,
+            $this->fixtureVariant,
+            $this->isCancelled
+        );
+    }
+
     /**
      * @param array<string, mixed> $grant
      * @return array<string, mixed>
@@ -27,81 +78,13 @@ final class ExecuteAuthorizedScanJob
         string $fixtureVariant = 'baseline',
         bool $isCancelled = false
     ): array {
-        if ($isCancelled) {
-            return [
-                'allowed' => false,
-                'cancelled' => true,
-                'reason' => 'scan_cancelled',
-                'detail' => 'Scan cancelled by EmergencyStopRegistry before worker execution (SEC-012)',
-            ];
-        }
-
-        if ($mode === 'restricted-remote') {
-            return [
-                'allowed' => false,
-                'cancelled' => false,
-                'reason' => 'remote_egress_isolation_unverified',
-                'detail' => 'restricted-remote mode is fail-closed until Linux netns & TrustedEgressBroker runtime verification is active in deployment (SEC-005 / SEC-014)',
-            ];
-        }
-
-        $repoRoot = realpath(__DIR__ . '/../../../..');
-        if ($repoRoot === false) {
-            throw new RuntimeException('Unable to resolve monorepo root for scanner worker execution');
-        }
-
-        $bridgeScript = $repoRoot . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'api-worker-bridge.ts';
-        $inputPayload = json_encode([
-            'scan_id' => $scanId,
-            'mode' => $mode,
-            'grant' => $grant,
-            'repository_path' => $repositoryPath,
-            'fixture_variant' => $fixtureVariant,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
-
-        $nodeBin = is_file('C:\\Program Files\\nodejs\\node.exe')
-            ? 'C:\\Program Files\\nodejs\\node.exe'
-            : 'node';
-        $cmd = [$nodeBin, '--experimental-strip-types', $bridgeScript];
-        $process = proc_open($cmd, $descriptors, $pipes, $repoRoot, null, ['bypass_shell' => true]);
-        if (!is_resource($process)) {
-            throw new RuntimeException('Failed to spawn isolated scanner worker subprocess');
-        }
-
-        fwrite($pipes[0], (string) $inputPayload);
-        fclose($pipes[0]);
-
-        $stdout = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
-
-        $exitCode = proc_close($process);
-        if ($exitCode !== 0 || !is_string($stdout) || trim($stdout) === '') {
-            return [
-                'allowed' => false,
-                'cancelled' => false,
-                'reason' => 'worker_subprocess_failed',
-                'detail' => 'Worker subprocess exited with code ' . $exitCode . ': ' . trim((string) $stderr),
-            ];
-        }
-
-        $decoded = json_decode($stdout, true);
-        if (!is_array($decoded)) {
-            return [
-                'allowed' => false,
-                'cancelled' => false,
-                'reason' => 'worker_invalid_json',
-                'detail' => 'Worker subprocess returned non-JSON output',
-            ];
-        }
-
-        return $decoded;
+        return WorkerSupervisorClient::executeScan(
+            $grant,
+            $scanId,
+            $mode,
+            $repositoryPath,
+            $fixtureVariant,
+            $isCancelled
+        );
     }
 }

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Database\Migrations\CreateHegosentinelPlatformTables;
+use Database\Migrations\EnablePostgresqlRowLevelSecurity;
 use PDO;
 
 require_once __DIR__ . '/../../database/migrations/2026_11_05_000001_create_hegosentinel_platform_tables.php';
+require_once __DIR__ . '/../../database/migrations/2026_11_05_000002_enable_postgresql_row_level_security.php';
 
 final class DatabaseManager
 {
@@ -24,7 +26,7 @@ final class DatabaseManager
         $defaultDriver = (string) ($config['default'] ?? 'sqlite');
 
         if ($defaultDriver === 'pgsql' && extension_loaded('pdo_pgsql')) {
-            $pg = $config['connections']['pgsql'];
+            $pg = $config['connections']['pgsql_admin'] ?? $config['connections']['pgsql'];
             $dsn = sprintf(
                 'pgsql:host=%s;port=%s;dbname=%s',
                 $pg['host'],
@@ -55,7 +57,7 @@ final class DatabaseManager
             self::$driver = 'sqlite';
         }
 
-        CreateHegosentinelPlatformTables::migrate(self::$pdo, self::$driver);
+        self::migrate(self::$pdo, self::$driver);
         return self::$pdo;
     }
 
@@ -67,6 +69,9 @@ final class DatabaseManager
     public static function migrate(PDO $pdo, string $driver = 'sqlite'): void
     {
         CreateHegosentinelPlatformTables::migrate($pdo, $driver);
+        if ($driver === 'pgsql') {
+            EnablePostgresqlRowLevelSecurity::migrate($pdo);
+        }
     }
 
     public static function resetConnection(?PDO $customPdo = null, string $driver = 'sqlite'): void
@@ -74,7 +79,7 @@ final class DatabaseManager
         self::$pdo = $customPdo;
         self::$driver = $driver;
         if (self::$pdo !== null) {
-            CreateHegosentinelPlatformTables::migrate(self::$pdo, self::$driver);
+            self::migrate(self::$pdo, self::$driver);
         }
     }
 

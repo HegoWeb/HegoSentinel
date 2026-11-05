@@ -9,6 +9,9 @@ node_modules/
 .tools/
 .venv/
 apps/api/vendor/
+.next/
+apps/web/.next/
+apps/web/out/
 
 # Nested duplicate copies and archives are read-only history, never a source of truth
 /HegoSentinel/
