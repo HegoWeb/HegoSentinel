@@ -11,7 +11,7 @@
     "start:ssr-fallback": "node --experimental-strip-types ./src/server.ts --serve"
   },
   "dependencies": {
-    "next": "^15.2.4",
+    "next": "^16.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
