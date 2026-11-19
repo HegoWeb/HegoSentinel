@@ -107,7 +107,7 @@ jobs:
           fi
 
       - name: Upload Test & Gate Reports Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-and-gate-reports-node-${{ matrix.node-version }}
           path: |
@@ -138,7 +138,7 @@ jobs:
         run: bash ./scripts/linux-docker-verify.sh
 
       - name: Upload Docker Containment Evidence Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-docker-evidence
           path: reports/linux-docker-evidence.json
@@ -170,7 +170,7 @@ jobs:
         run: bash ./scripts/linux-scanner-verify.sh
 
       - name: Upload Real Scanner Evidence Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: real-scanner-evidence
           path: reports/real-scanner-evidence.json
@@ -196,7 +196,7 @@ jobs:
           bash ./scripts/linux-netns-egress-verify.sh
 
       - name: Upload Linux Egress Isolation Evidence Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-egress-isolation-evidence
           path: reports/linux-egress-isolation-evidence.json
@@ -217,7 +217,7 @@ jobs:
         run: bash ./scripts/linux-sprint10-compose-verify.sh
 
       - name: Upload Sprint 10 Docker Compose Evidence Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sprint10-compose-evidence
           path: reports/sprint10-compose-evidence.json
@@ -263,7 +263,7 @@ jobs:
           trivy fs --scanners secret --skip-dirs ".tools,examples,tests,apps/api/tests,docs/audit-evidence" --exit-code 1 --format json --output reports/trivy-repo-secrets.json .
 
       - name: Upload Secret & Dependency Audit Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: secret-and-dependency-audit
           path: |
@@ -308,7 +308,7 @@ jobs:
           npm run verify:release-gate -- --enforce-production-release
 
       - name: Upload Final Unified Release Gate Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: final-release-gate-verification
           path: |
