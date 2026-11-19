@@ -39,6 +39,6 @@
     "verify:release-gate": "node --experimental-strip-types ./scripts/release-gate-check.ts"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   }
 }
