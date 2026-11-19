@@ -3,66 +3,16 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/bootstrap/autoload.php';
+define('LARAVEL_START', microtime(true));
 
-use App\Services\SecurityPlatformService;
-use App\Support\DatabaseManager;
+require __DIR__ . '/bootstrap/autoload.php';
 
-$args = array_slice($argv, 1);
-$command = $args[0] ?? 'list';
+use Illuminate\Foundation\Application;
+use Symfony\Component\Console\Input\ArgvInput;
 
-switch ($command) {
-    case 'migrate':
-    case 'migrate:fresh':
-    case 'db:seed':
-        $pdo = DatabaseManager::connect();
-        DatabaseManager::migrate($pdo);
-        $service = new SecurityPlatformService($pdo);
-        $service->seedInitialStateIfEmpty();
-        echo "[HegoSentinel Artisan] Database migrated and initial multi-tenant security state seeded.\n";
-        exit(0);
+/** @var Application $app */
+$app = require_once __DIR__ . '/bootstrap/app.php';
 
-    case 'serve':
-        $host = '127.0.0.1';
-        $port = '8000';
-        foreach ($args as $arg) {
-            if (str_starts_with($arg, '--host=')) {
-                $candidateHost = substr($arg, 7);
-                if (preg_match('/^[a-zA-Z0-9.\-]+$/', $candidateHost) === 1) {
-                    $host = $candidateHost;
-                }
-            }
-            if (str_starts_with($arg, '--port=')) {
-                $candidatePort = (int) substr($arg, 7);
-                if ($candidatePort >= 1 && $candidatePort <= 65535) {
-                    $port = (string) $candidatePort;
-                }
-            }
-        }
-        $pdo = DatabaseManager::connect();
-        DatabaseManager::migrate($pdo);
-        $service = new SecurityPlatformService($pdo);
-        $service->seedInitialStateIfEmpty();
-        echo sprintf("[HegoSentinel Artisan] Starting PHP API server on http://%s:%s ...\n", $host, $port);
-        passthru(sprintf('"%s" -S %s -t %s', PHP_BINARY, escapeshellarg($host . ':' . $port), escapeshellarg(__DIR__ . '/public')));
-        exit(0);
+$status = $app->handleCommand(new ArgvInput());
 
-    case 'horizon':
-    case 'queue:work':
-        echo "[HegoSentinel Horizon] Queue supervisor active (queue=hegosentinel-scans, isolation=source-offline-subprocess).\n";
-        exit(0);
-
-    case 'test':
-        require __DIR__ . '/tests/run-api-tests.php';
-        exit(0);
-
-    default:
-        echo "HegoSentinel Laravel API (v0.1.0-alpha.4)\n";
-        echo "Available commands:\n";
-        echo "  migrate          Run database migrations and seed multi-tenant state\n";
-        echo "  serve            Start the HTTP API server (default 127.0.0.1:8000)\n";
-        echo "  horizon          Start the Horizon queue worker supervisor\n";
-        echo "  test             Execute the full 14-module API & SEC-011/012/013 integration test suite\n";
-        exit(0);
-}
-
+exit($status);

@@ -1,0 +1,404 @@
+# HegoSentinel Sprint 11 — Hardened Multi-Tenant Staging Infrastructure (`docker-compose.staging.yml`)
+#
+# Architectural Security Controls (STG-01..STG-13):
+# 1. Zero Default Secrets: All sensitive credentials use `${VAR:?err}` fail-closed interpolation from KMS/Vault-hydrated environment.
+# 2. TLS 1.3 Termination & Reverse Proxy (`reverse-proxy`): Only ports 80/443 are exposed; `api`, `web`, `postgres`, `redis`,
+#    `horizon`, `worker-supervisor`, `docker-socket-proxy`, and `egress-broker` expose ZERO host ports.
+# 3. Digest-Pinned Official Base Images (`@sha256:...`) for supply-chain immutability (Section 6).
+# 4. Docker Socket Minimization: Only `docker-socket-proxy` mounts `/var/run/docker.sock:ro` with `PRIVILEGED=0`, `VOLUMES=0`,
+#    `NETWORKS=0`, `SWARM=0`, `SYSTEM=0`, `SECRETS=0`, `AUTH=0`. Alternatively, `DOCKER_HOST` can point to a dedicated remote
+#    mTLS Worker VM (`tcp://worker-host.staging.internal:2376`).
+# 5. Four-Zone Network Segmentation:
+#    - `hego_dmz_tls`: Reverse Proxy <-> Web / API only
+#    - `hego_data_internal` (`internal: true`): API / Horizon <-> PostgreSQL 16 (SSL) & Redis 7.4 (requirepass)
+#    - `hego_supervisor_internal` (`internal: true`): Horizon <-> Worker Supervisor <-> Docker Socket Proxy
+#    - `hego_egress_dmz`: Egress Broker outbound inspection plane (`defaultPolicy: DENY_ALL`)
+
+name: hegosentinel-staging
+
+services:
+  reverse-proxy:
+    image: caddy:2.8.4-alpine@sha256:66badc3d3f965a8a782f4c4362bd157727eb3b6a4859d6ff7fb096272f46c971
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:8080"
+      - "443:8443"
+    environment:
+      STAGING_DOMAIN: ${STAGING_DOMAIN:?STAGING_DOMAIN must be set}
+      TLS_CERT_MODE: ${TLS_CERT_MODE:-internal}
+    volumes:
+      - ./infra/staging/Caddyfile:/etc/caddy/Caddyfile:ro
+      - hego_caddy_data:/data
+      - hego_caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - hego_dmz_tls
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16.6-alpine@sha256:aba1fab92ab5dc8aa8c2cc98d0b9b23a2bd27907ed04a2b132b00f132e352828
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:?DB_DATABASE must be set}
+      POSTGRES_USER: ${DB_ADMIN_USERNAME:?DB_ADMIN_USERNAME must be set}
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD must be set}
+    volumes:
+      - hego_staging_pgdata:/var/lib/postgresql/data
+    networks:
+      - hego_data_internal
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_ADMIN_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine@sha256:06fa4bfce2a6b6bf7a116a9d224f1a21b9d72b114d63218c98089f06a99714b6
+    restart: unless-stopped
+    command:
+      - "redis-server"
+      - "--save"
+      - "60"
+      - "1"
+      - "--appendonly"
+      - "yes"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
+      - "--maxmemory"
+      - "512mb"
+      - "--maxmemory-policy"
+      - "noeviction"
+      - "--rename-command"
+      - "FLUSHALL"
+      - ""
+      - "--rename-command"
+      - "CONFIG"
+      - ""
+    volumes:
+      - hego_staging_redisdata:/data
+    networks:
+      - hego_data_internal
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 640M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0@sha256:1f3beb1d3eb8f90f452d31f82a8298c973e161d5ca3ca1f70a401809e8c35f60
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /run:rw,noexec,nosuid,nodev,size=16m
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      LOG_LEVEL: notice
+      CONTAINERS: "1"
+      IMAGES: "1"
+      POST: "1"
+      PING: "1"
+      VERSION: "1"
+      # Strictly forbidden Docker Engine API endpoints (Fail-Closed)
+      AUTH: "0"
+      BUILD: "0"
+      COMMIT: "0"
+      CONFIGS: "0"
+      DISTRIBUTION: "0"
+      EXEC: "0"
+      GRPC: "0"
+      INFO: "0"
+      NETWORKS: "0"
+      NODES: "0"
+      PLUGINS: "0"
+      PRIVILEGED: "0"
+      SECRETS: "0"
+      SERVICES: "0"
+      SESSION: "0"
+      SWARM: "0"
+      SYSTEM: "0"
+      TASKS: "0"
+      VOLUMES: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - hego_supervisor_internal
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  egress-broker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    command: ["node", "--experimental-strip-types", "apps/egress-broker/src/index.ts"]
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HEGOSENTINEL_BROKER_PORT: "8090"
+      HEGOSENTINEL_BROKER_HOST: "0.0.0.0"
+      HEGOSENTINEL_BROKER_SECRET: ${HEGOSENTINEL_BROKER_SECRET:?HEGOSENTINEL_BROKER_SECRET must be set}
+    networks:
+      - hego_supervisor_internal
+      - hego_egress_dmz
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/v1/egress/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  worker-supervisor:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      args:
+        INSTALL_SCANNERS: "true"
+        SEMGREP_VERSION: "1.183.0"
+        TRIVY_VERSION: "0.76.1"
+    command: ["node", "--experimental-strip-types", "apps/worker/src/supervisor.ts"]
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
+      HEGOSENTINEL_SUPERVISOR_HOST: "0.0.0.0"
+      HEGOSENTINEL_SUPERVISOR_PORT: "8795"
+      HEGOSENTINEL_SUPERVISOR_SECRET: ${HEGOSENTINEL_SUPERVISOR_SECRET:?HEGOSENTINEL_SUPERVISOR_SECRET must be set}
+      HEGOSENTINEL_EPHEMERAL_DOCKER_WORKER: ${HEGOSENTINEL_EPHEMERAL_DOCKER_WORKER:-1}
+      DOCKER_HOST: ${WORKER_DOCKER_HOST:-tcp://docker-socket-proxy:2375}
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
+    networks:
+      - hego_supervisor_internal
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8795/v1/supervisor/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker-supervisor:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      APP_ENV: staging
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?APP_KEY must be set}
+      HEGOSENTINEL_DEMO_MODE: "0"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_DATABASE:?DB_DATABASE must be set}
+      DB_USERNAME: ${DB_APP_USERNAME:-hegosentinel_app}
+      DB_PASSWORD: ${DB_APP_PASSWORD:?DB_APP_PASSWORD must be set}
+      DB_ADMIN_USERNAME: ${DB_ADMIN_USERNAME:?DB_ADMIN_USERNAME must be set}
+      DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD must be set}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      QUEUE_CONNECTION: redis
+      HEGOSENTINEL_WORKER_SUPERVISOR_URL: "http://worker-supervisor:8795"
+      HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
+      HEGOSENTINEL_SUPERVISOR_STRICT: "1"
+    networks:
+      - hego_dmz_tls
+      - hego_data_internal
+      - hego_supervisor_internal
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/api/v1/readiness') ? 0 : 1);"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  horizon:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["php", "artisan", "horizon", "--workers=2"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker-supervisor:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      APP_ENV: staging
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?APP_KEY must be set}
+      HEGOSENTINEL_DEMO_MODE: "0"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_DATABASE:?DB_DATABASE must be set}
+      DB_USERNAME: ${DB_APP_USERNAME:-hegosentinel_app}
+      DB_PASSWORD: ${DB_APP_PASSWORD:?DB_APP_PASSWORD must be set}
+      DB_ADMIN_USERNAME: ${DB_ADMIN_USERNAME:?DB_ADMIN_USERNAME must be set}
+      DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD must be set}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      QUEUE_CONNECTION: redis
+      HEGOSENTINEL_WORKER_SUPERVISOR_URL: "http://worker-supervisor:8795"
+      HEGOSENTINEL_SUPERVISOR_HTTP_ENABLED: "1"
+      HEGOSENTINEL_SUPERVISOR_STRICT: "1"
+    networks:
+      - hego_data_internal
+      - hego_supervisor_internal
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(file_exists('/tmp/horizon-heartbeat.json') ? 0 : 1);"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      HEGOSENTINEL_API_UPSTREAM_URL: "http://api:8000"
+      NEXT_PUBLIC_API_URL: "https://${STAGING_DOMAIN}"
+    networks:
+      - hego_dmz_tls
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/robots.txt').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  hego_dmz_tls:
+    driver: bridge
+  hego_data_internal:
+    driver: bridge
+    internal: true
+  hego_supervisor_internal:
+    driver: bridge
+    internal: true
+  hego_egress_dmz:
+    driver: bridge
+
+volumes:
+  hego_staging_pgdata:
+  hego_staging_redisdata:
+  hego_caddy_data:
+  hego_caddy_config:
+

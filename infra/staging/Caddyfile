@@ -1,0 +1,61 @@
+{
+	http_port 8080
+	https_port 8443
+	admin off
+}
+
+:8080 {
+	respond /healthz "OK" 200
+	redir https://{host}{uri} 308
+}
+
+{$STAGING_DOMAIN:staging.hegosentinel.internal}:8443 {
+	tls {$TLS_CERT_MODE:internal} {
+		protocols tls1.3
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+		-X-Powered-By
+	}
+
+	# Strip any spoofed internal or legacy auth headers at the edge
+	request_header -X-Demo-Principal
+	request_header -X-Hegosentinel-Remote-Addr
+	request_header X-Hegosentinel-Remote-Addr {remote_host}
+
+	handle /api/* {
+		reverse_proxy api:8000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up -X-Demo-Principal
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+
+	handle /health {
+		reverse_proxy api:8000
+	}
+
+	handle /readiness {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up -X-Demo-Principal
+		}
+	}
+}
+

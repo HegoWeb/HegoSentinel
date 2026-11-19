@@ -4,21 +4,30 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Jobs\DispatchApprovedNotificationJob;
 use App\Jobs\ExecuteAuthorizedScanJob;
+use App\Jobs\ExecuteRecheckComparisonJob;
+use App\Queue\HorizonRedisQueueEngine;
 use App\Support\DatabaseManager;
 use App\Support\RuntimeMode;
+use App\Support\TenantRlsContext;
 use PDO;
 use RuntimeException;
 
 require_once __DIR__ . '/../Support/DatabaseManager.php';
 require_once __DIR__ . '/../Support/RuntimeMode.php';
+require_once __DIR__ . '/../Support/TenantRlsContext.php';
+require_once __DIR__ . '/../Queue/HorizonRedisQueueEngine.php';
+require_once __DIR__ . '/WorkerSupervisorClient.php';
 require_once __DIR__ . '/../Jobs/ExecuteAuthorizedScanJob.php';
+require_once __DIR__ . '/../Jobs/ExecuteRecheckComparisonJob.php';
+require_once __DIR__ . '/../Jobs/DispatchApprovedNotificationJob.php';
 
 /**
- * HegoSentinel Stage 2 / Sprint 8 Security Platform Service
+ * HegoSentinel Stage 2 / Sprint 10 Security Platform Service
  * Implements all 14 backend modules with server-side multi-tenant & project isolation (SEC-011),
  * RBAC enforcement, EmergencyStopRegistry (SEC-012), Approved Notifications (SEC-013),
- * and SHA-256 hash-chained Audit Logs.
+ * WorkerSupervisorClient delegation (S10-03 / S10-04), and SHA-256 hash-chained Audit Logs.
  */
 final class SecurityPlatformService
 {
@@ -41,6 +50,11 @@ final class SecurityPlatformService
     {
         $this->pdo = $pdo ?? DatabaseManager::connection();
         $this->ensureSeeded();
+    }
+
+    public function pdo(): PDO
+    {
+        return $this->pdo;
     }
 
     public function seedInitialStateIfEmpty(): void
@@ -353,9 +367,21 @@ final class SecurityPlatformService
         $memStmt = $this->pdo->prepare('SELECT * FROM organization_members WHERE user_id = :uid LIMIT 1');
         $memStmt->execute([':uid' => $user['id']]);
         $membership = $memStmt->fetch();
+        if (!$membership && TenantRlsContext::isPostgres($this->pdo)) {
+            $fnStmt = $this->pdo->prepare('SELECT hegosentinel_resolve_user_org_for_login(:uid)');
+            $fnStmt->execute([':uid' => $user['id']]);
+            $resolvedOrg = $fnStmt->fetchColumn();
+            if (is_string($resolvedOrg) && $resolvedOrg !== '') {
+                TenantRlsContext::applySessionTenantSetting($this->pdo, $resolvedOrg, true);
+                $memStmt->execute([':uid' => $user['id']]);
+                $membership = $memStmt->fetch();
+            }
+        }
         if (!$membership) {
             throw new RuntimeException('User has no active organization membership', 403);
         }
+
+        TenantRlsContext::applySessionTenantSetting($this->pdo, (string) $membership['organization_id'], true);
 
         $rawToken = 'hst_' . bin2hex(random_bytes(24));
         $tokenHash = hash('sha256', $rawToken);
@@ -550,17 +576,24 @@ final class SecurityPlatformService
         if ($bearerToken !== null && trim($bearerToken) !== '') {
             $clean = preg_replace('/^Bearer\s+/i', '', trim($bearerToken)) ?? '';
             $tokenHash = hash('sha256', $clean);
-            $stmt = $this->pdo->prepare(
-                'SELECT * FROM user_sessions WHERE token_hash = :th AND revoked_at IS NULL LIMIT 1'
-            );
-            $stmt->execute([':th' => $tokenHash]);
-            $session = $stmt->fetch();
+            if (TenantRlsContext::isPostgres($this->pdo)) {
+                $stmt = $this->pdo->prepare('SELECT * FROM hegosentinel_resolve_token_session(:th) LIMIT 1');
+                $stmt->execute([':th' => $tokenHash]);
+                $session = $stmt->fetch();
+            } else {
+                $stmt = $this->pdo->prepare(
+                    'SELECT * FROM user_sessions WHERE token_hash = :th AND revoked_at IS NULL LIMIT 1'
+                );
+                $stmt->execute([':th' => $tokenHash]);
+                $session = $stmt->fetch();
+            }
             if (!$session) {
                 throw new RuntimeException('Invalid or revoked session token', 401);
             }
             if (strtotime((string) $session['expires_at']) <= time()) {
                 throw new RuntimeException('Session token has expired', 401);
             }
+            TenantRlsContext::applySessionTenantSetting($this->pdo, (string) $session['organization_id'], true);
             return $this->getPrincipalById((string) $session['user_id'], (string) $session['organization_id']);
         }
 
@@ -1158,6 +1191,42 @@ final class SecurityPlatformService
         $stopTokenId = 'ESTOP-' . strtoupper(bin2hex(random_bytes(5)));
         $now = gmdate('Y-m-d\TH:i:s\Z');
 
+        // S10-03: Prevent restarting or re-running a cancelled scan (SEC-012)
+        if (!empty($payload['restart_scan_run_id'])) {
+            $restartId = trim((string) $payload['restart_scan_run_id']);
+            $existingScan = $this->getScanById($principal, $restartId);
+            if (in_array((string) ($existingScan['status'] ?? ''), ['cancelled', 'denied', 'killed'], true)) {
+                $this->appendAuditLog(
+                    $orgId,
+                    $projectId,
+                    (string) $principal['user_id'],
+                    (string) $principal['role'],
+                    'trigger_scan',
+                    'deny',
+                    sprintf('Rejected attempt to restart cancelled/denied scan %s (SEC-012 / S10-03)', $restartId)
+                );
+                throw new RuntimeException('Cancelled or denied scans cannot be restarted; issue a new authorized scan request (SEC-012)', 409);
+            }
+        }
+
+        // S10-03: Idempotency & duplicate job prevention on `hegosentinel-scans`
+        $idempotencyKey = isset($payload['idempotency_key']) && trim((string) $payload['idempotency_key']) !== ''
+            ? substr(trim((string) $payload['idempotency_key']), 0, 128)
+            : null;
+        if ($idempotencyKey !== null) {
+            $dupStmt = $this->pdo->prepare(
+                'SELECT scan_run_id, status FROM scan_queue_jobs WHERE organization_id = :org AND project_id = :pid AND idempotency_key = :ikey ORDER BY dispatched_at DESC LIMIT 1'
+            );
+            $dupStmt->execute([':org' => $orgId, ':pid' => $projectId, ':ikey' => $idempotencyKey]);
+            $dupJob = $dupStmt->fetch();
+            if ($dupJob) {
+                if (in_array((string) $dupJob['status'], ['killed', 'cancelled'], true)) {
+                    throw new RuntimeException('Scan associated with this idempotency_key was cancelled by Emergency Stop and cannot be restarted (SEC-012)', 409);
+                }
+                return $this->getScanById($principal, (string) $dupJob['scan_run_id']);
+            }
+        }
+
         // Check if an emergency stop has been triggered for this project (SEC-012).
         // A project-wide stop (no scan_run_id) HOLDS new scans for a cooldown window regardless of any
         // client-supplied flag; the previous `honor_project_stop` opt-in let any caller bypass it.
@@ -1179,28 +1248,149 @@ final class SecurityPlatformService
         // Server-side confinement of the repository path (BOLA / path traversal) BEFORE any job row exists
         $repoPath = $this->resolveScanRepositoryPath($principal, $proj, $grantRow, $payload['repository_path'] ?? null);
 
-        // Record Queue Job (Module 6 — Redis/Horizon/Database Queue tracking)
+        // S10-03 / S11-02 Lifecycle Step 1: Enqueue job in `queued` state on `hegosentinel-scans`
         $jobId = 'JOB-' . strtoupper(bin2hex(random_bytes(5)));
+        $containerId = 'hs-wkr-' . strtolower(substr($scanId, 5));
+        $maxTries = max(1, min(3, (int) ($payload['max_tries'] ?? 1)));
+        $timeoutSeconds = max(1, min(300, (int) ($payload['timeout_seconds'] ?? 90)));
+        $resourceLimitsJson = json_encode([
+            'user' => '65532:65532',
+            'read_only' => true,
+            'cap_drop' => ['ALL'],
+            'network_mode' => 'none',
+            'pids_limit' => 64,
+            'memory_bytes' => 536870912,
+            'tmpfs_scratch_bytes' => 67108864,
+        ]);
+
         $this->pdo->prepare(
-            'INSERT INTO scan_queue_jobs (id, organization_id, project_id, scan_run_id, queue_name, worker_isolation_mode, status, attempts, dispatched_at)
-             VALUES (:id, :org, :pid, :sid, \'hegosentinel-scans\', :iso, \'running\', 1, :now)'
+            'INSERT INTO scan_queue_jobs (
+                id, organization_id, project_id, scan_run_id, queue_name, worker_isolation_mode,
+                status, attempts, max_tries, timeout_seconds, idempotency_key, supervisor_container_id,
+                horizon_supervisor, redis_queue_id, container_started_at, resource_limits_json, heartbeat_at, dispatched_at
+            ) VALUES (
+                :id, :org, :pid, :sid, \'hegosentinel-scans\', :iso,
+                \'queued\', 0, :mtries, :tsec, :ikey, :cid,
+                \'supervisor-scans\', :rqid, :st, :rlim, :hb, :now
+            )'
         )->execute([
             ':id' => $jobId,
             ':org' => $orgId,
             ':pid' => $projectId,
             ':sid' => $scanId,
-            ':iso' => $mode === 'restricted-remote' ? 'egress-broker-blocked' : 'source-offline-subprocess',
+            ':iso' => $mode === 'restricted-remote' ? 'egress-broker-blocked' : 'supervisor-isolated-worker',
+            ':mtries' => $maxTries,
+            ':tsec' => $timeoutSeconds,
+            ':ikey' => $idempotencyKey,
+            ':cid' => $containerId,
+            ':rqid' => $jobId,
+            ':st' => $now,
+            ':rlim' => $resourceLimitsJson,
+            ':hb' => $now,
             ':now' => $now,
         ]);
 
-        $workerRes = ExecuteAuthorizedScanJob::dispatchSyncOrQueue(
-            $grantObj,
-            $scanId,
-            $mode,
-            $repoPath,
-            $fixtureVariant,
-            $isCancelled
-        );
+        $horizonEngine = new HorizonRedisQueueEngine();
+        $useRedisHorizon = (getenv('QUEUE_CONNECTION') === 'redis' || ($_ENV['QUEUE_CONNECTION'] ?? '') === 'redis')
+            && !$isCancelled
+            && $mode !== 'restricted-remote'
+            && $horizonEngine->isRedisReachable(1.0);
+
+        if ($useRedisHorizon) {
+            $horizonEngine->enqueue([
+                'job_id' => $jobId,
+                'unique_id' => $scanId,
+                'scan_id' => $scanId,
+                'organization_id' => $orgId,
+                'project_id' => $projectId,
+                'grant_id' => (string) $grantRow['grant_id'],
+                'queue' => 'hegosentinel-scans',
+                'job_class' => ExecuteAuthorizedScanJob::class,
+                'max_tries' => $maxTries,
+                'timeout_seconds' => $timeoutSeconds,
+                'idempotency_key' => $idempotencyKey,
+                'payload' => [
+                    'grant' => $grantObj,
+                    'mode' => $mode,
+                    'repository_path' => $repoPath,
+                    'fixture_variant' => $fixtureVariant,
+                    'simulated_duration_ms' => isset($payload['simulated_duration_ms']) ? (int) $payload['simulated_duration_ms'] : 0,
+                ],
+            ]);
+
+            if (!empty($payload['async_queue_only'])) {
+                $this->pdo->prepare(
+                    'INSERT INTO scan_runs (
+                        id, organization_id, project_id, grant_id, scope_version, profile, mode, data_source,
+                        status, global_coverage_status, scanner_version, total_findings,
+                        critical_count, high_count, medium_count, low_count,
+                        coverage_checks_json, report_payload_json, emergency_stop_token_id,
+                        triggered_by_user_id, started_at
+                    ) VALUES (
+                        :id, :org, :pid, :gid, :ver, :prof, :mode, :ds,
+                        \'queued\', \'pending\', \'0.2.0-sprint11\', 0,
+                        0, 0, 0, 0,
+                        \'[]\', \'{}\', :stop,
+                        :uid, :start
+                    )'
+                )->execute([
+                    ':id' => $scanId,
+                    ':org' => $orgId,
+                    ':pid' => $projectId,
+                    ':gid' => $grantRow['grant_id'],
+                    ':ver' => (int) $grantRow['scope_version'],
+                    ':prof' => $grantRow['profile'],
+                    ':mode' => $mode,
+                    ':ds' => $dataSource,
+                    ':stop' => $stopTokenId,
+                    ':uid' => $principal['user_id'],
+                    ':start' => $now,
+                ]);
+                return $this->getScanById($principal, $scanId);
+            }
+
+            $workerRes = $horizonEngine->waitForJobOrWorkInline($this->pdo, $jobId, 'hegosentinel-scans', 2500);
+            if (!is_array($workerRes)) {
+                $workerRes = [
+                    'allowed' => false,
+                    'cancelled' => true,
+                    'reason' => 'scan_cancelled',
+                    'detail' => 'Scan job cancelled or failed while in Horizon Redis queue',
+                ];
+            }
+        } else {
+            // S10-03 Lifecycle Step 2: Transition `queued -> running` and record worker heartbeat under TenantRlsContext
+            $runningHeartbeat = gmdate('Y-m-d\TH:i:s\Z');
+            $this->pdo->prepare(
+                'UPDATE scan_queue_jobs SET status = \'running\', attempts = 1, worker_pid = :wpid, heartbeat_at = :hb WHERE id = :id'
+            )->execute([':wpid' => (int) getmypid(), ':hb' => $runningHeartbeat, ':id' => $jobId]);
+
+            $workerRes = TenantRlsContext::runInTenantTransaction(
+                $this->pdo,
+                $orgId,
+                static function () use ($grantObj, $scanId, $mode, $repoPath, $fixtureVariant, $isCancelled, $orgId): array {
+                    $jobInstance = new ExecuteAuthorizedScanJob(
+                        $grantObj,
+                        $scanId,
+                        $mode,
+                        $repoPath,
+                        $fixtureVariant,
+                        $isCancelled,
+                        $orgId
+                    );
+                    return $jobInstance->handle();
+                },
+                $principal
+            );
+        }
+
+        if (!empty($workerRes['docker_runtime']['container_id']) || !empty($workerRes['container_name'])) {
+            $resolvedCid = (string) ($workerRes['docker_runtime']['container_id'] ?? $workerRes['container_name'] ?? $containerId);
+            $resolvedPid = isset($workerRes['worker_pid']) ? (int) $workerRes['worker_pid'] : (int) getmypid();
+            $this->pdo->prepare(
+                'UPDATE scan_queue_jobs SET supervisor_container_id = :cid, worker_pid = :pid WHERE id = :id'
+            )->execute([':cid' => $resolvedCid, ':pid' => $resolvedPid, ':id' => $jobId]);
+        }
 
         $finishedAt = gmdate('Y-m-d\TH:i:s\Z');
 
@@ -1282,7 +1472,7 @@ final class SecurityPlatformService
         $findings = (array) ($report['findings'] ?? []);
 
         $this->pdo->prepare(
-            'UPDATE scan_queue_jobs SET status = \'completed\', finished_at = :fin WHERE id = :id'
+            'UPDATE scan_queue_jobs SET status = \'completed\', container_finished_at = :fin, finished_at = :fin WHERE id = :id'
         )->execute([':fin' => $finishedAt, ':id' => $jobId]);
 
         $this->pdo->prepare(
@@ -1752,31 +1942,13 @@ final class SecurityPlatformService
             ];
         }
 
-        $repoRoot = realpath(__DIR__ . '/../../../..') ?: getcwd();
-        $bridgeScript = $repoRoot . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'api-worker-bridge.ts';
-        $inputPayload = json_encode([
-            'action' => 'compare',
-            'baseline_report' => $baseRow['report'],
-            'current_report' => $currRow['report'],
-            'suppressions' => $suppressions,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $nodeBin = is_file('C:\\Program Files\\nodejs\\node.exe')
-            ? 'C:\\Program Files\\nodejs\\node.exe'
-            : 'node';
-        $process = proc_open([$nodeBin, '--experimental-strip-types', $bridgeScript], $descriptors, $pipes, $repoRoot, null, ['bypass_shell' => true]);
-        if (!is_resource($process)) {
-            throw new RuntimeException('Failed to invoke recheck comparison engine');
-        }
-        fwrite($pipes[0], (string) $inputPayload);
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        proc_close($process);
-
-        $decoded = json_decode((string) $stdout, true);
+        $recheckJob = new ExecuteRecheckComparisonJob(
+            $projectId . ':' . $baselineId . ':' . $currentId,
+            (array) $baseRow['report'],
+            (array) $currRow['report'],
+            $suppressions
+        );
+        $decoded = $recheckJob->handle();
         if (!is_array($decoded) || empty($decoded['comparison'])) {
             throw new RuntimeException('Recheck comparison failed');
         }
@@ -1893,30 +2065,11 @@ final class SecurityPlatformService
             }
         }
 
-        $repoRoot = realpath(__DIR__ . '/../../../..') ?: getcwd();
-        $bridgeScript = $repoRoot . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'api-worker-bridge.ts';
-        $inputPayload = json_encode([
+        $decoded = WorkerSupervisorClient::executeAuxAction([
             'action' => 'export',
             'export_format' => $fmt,
             'report' => $report,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $nodeBin = is_file('C:\\Program Files\\nodejs\\node.exe')
-            ? 'C:\\Program Files\\nodejs\\node.exe'
-            : 'node';
-        $process = proc_open([$nodeBin, '--experimental-strip-types', $bridgeScript], $descriptors, $pipes, $repoRoot, null, ['bypass_shell' => true]);
-        if (!is_resource($process)) {
-            throw new RuntimeException('Failed to invoke report exporter');
-        }
-        fwrite($pipes[0], (string) $inputPayload);
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        proc_close($process);
-
-        $decoded = json_decode((string) $stdout, true);
+        ]);
         if (!is_array($decoded) || empty($decoded['ok'])) {
             throw new RuntimeException('Failed to export report');
         }
@@ -2083,25 +2236,62 @@ final class SecurityPlatformService
         }
         $this->assertTenantAndRoleAccess($principal, $orgId, $projectId, 'emergency_stop');
 
+        $stopStartNs = hrtime(true);
         $stopId = 'STOP-' . strtoupper(bin2hex(random_bytes(5)));
         $tokenId = (string) ($payload['emergency_stop_token_id'] ?? ('ESTOP-' . strtoupper(bin2hex(random_bytes(4)))));
         $now = gmdate('Y-m-d\TH:i:s\Z');
 
         $terminatedCount = 0;
+        $cancelMeta = [
+            'terminated' => true,
+            'latency_ms' => 1,
+            'signal_sequence' => 'SIGTERM -> SIGKILL',
+            'supervisor_mode' => 'supervisor-registry-revocation',
+        ];
+
         if ($scanId !== null && $scanId !== '') {
             $scanRow = $this->getScanById($principal, $scanId);
             $tokenId = (string) ($scanRow['emergency_stop_token_id'] ?? $tokenId);
             $projectId = (string) $scanRow['project_id'];
+            $queueJob = is_array($scanRow['queue_job'] ?? null) ? $scanRow['queue_job'] : [];
+            $containerId = isset($queueJob['supervisor_container_id']) ? (string) $queueJob['supervisor_container_id'] : null;
+            $workerPid = isset($queueJob['worker_pid']) ? (int) $queueJob['worker_pid'] : null;
+
+            $cancelMeta = WorkerSupervisorClient::cancelRunningScan($scanId, $containerId, $workerPid);
 
             $this->pdo->prepare(
                 'UPDATE scan_runs SET status = \'cancelled\', global_coverage_status = \'denied\', cancelled_reason = :reason, completed_at = :now WHERE id = :id AND organization_id = :org'
             )->execute([':reason' => 'SEC-012 Emergency Stop: ' . $reason, ':now' => $now, ':id' => $scanId, ':org' => $orgId]);
 
             $this->pdo->prepare(
-                'UPDATE scan_queue_jobs SET status = \'killed\', finished_at = :now, error_message = :reason WHERE scan_run_id = :sid AND organization_id = :org'
+                'UPDATE scan_queue_jobs SET status = \'killed\', finished_at = :now, heartbeat_at = :now, error_message = :reason WHERE scan_run_id = :sid AND organization_id = :org'
             )->execute([':now' => $now, ':reason' => 'SIGTERM -> SIGKILL (' . $reason . ')', ':sid' => $scanId, ':org' => $orgId]);
 
             $terminatedCount = 1;
+        } elseif ($projectId !== null) {
+            // Project-wide stop: cancel all queued or running jobs for this project
+            $activeStmt = $this->pdo->prepare(
+                'SELECT scan_run_id, supervisor_container_id, worker_pid FROM scan_queue_jobs
+                 WHERE organization_id = :org AND project_id = :pid AND status IN (\'queued\', \'running\')'
+            );
+            $activeStmt->execute([':org' => $orgId, ':pid' => $projectId]);
+            foreach ($activeStmt->fetchAll() as $activeJob) {
+                WorkerSupervisorClient::cancelRunningScan(
+                    (string) $activeJob['scan_run_id'],
+                    isset($activeJob['supervisor_container_id']) ? (string) $activeJob['supervisor_container_id'] : null,
+                    isset($activeJob['worker_pid']) ? (int) $activeJob['worker_pid'] : null
+                );
+                $terminatedCount++;
+            }
+            $this->pdo->prepare(
+                'UPDATE scan_queue_jobs SET status = \'killed\', finished_at = :now, error_message = :reason
+                 WHERE organization_id = :org AND project_id = :pid AND status IN (\'queued\', \'running\')'
+            )->execute([':now' => $now, ':reason' => 'SIGTERM -> SIGKILL (' . $reason . ')', ':org' => $orgId, ':pid' => $projectId]);
+
+            $this->pdo->prepare(
+                'UPDATE scan_runs SET status = \'cancelled\', global_coverage_status = \'denied\', cancelled_reason = :reason, completed_at = :now
+                 WHERE organization_id = :org AND project_id = :pid AND status IN (\'queued\', \'running\')'
+            )->execute([':reason' => 'SEC-012 Emergency Stop: ' . $reason, ':now' => $now, ':org' => $orgId, ':pid' => $projectId]);
         }
 
         // Also revoke active scope grants if project_level_revoke requested
@@ -2111,9 +2301,22 @@ final class SecurityPlatformService
             )->execute([':pid' => $projectId, ':org' => $orgId]);
         }
 
+        // Purge/cancel queued and reserved jobs in Redis Horizon queue if Redis is reachable
+        $redisCancelMeta = ['purged_from_queue' => 0, 'marked_cancelled' => false];
+        try {
+            $horizonEngine = new HorizonRedisQueueEngine();
+            if ($horizonEngine->isRedisReachable(0.5)) {
+                $redisCancelMeta = $horizonEngine->cancelJobsInRedis($scanId, $orgId, $projectId, $reason);
+            }
+        } catch (\Throwable) {
+            // Fail-safe: PostgreSQL and WorkerSupervisor revocations are already enforced
+        }
+
+        $totalLatencyMs = max(1, (int) round((hrtime(true) - $stopStartNs) / 1_000_000));
+
         $this->pdo->prepare(
-            'INSERT INTO emergency_stop_events (id, organization_id, project_id, scan_run_id, emergency_stop_token_id, triggered_by_user_id, reason, subprocesses_terminated, created_at)
-             VALUES (:id, :org, :pid, :sid, :tok, :uid, :reason, :term, :c)'
+            'INSERT INTO emergency_stop_events (id, organization_id, project_id, scan_run_id, emergency_stop_token_id, triggered_by_user_id, reason, subprocesses_terminated, cancellation_latency_ms, created_at)
+             VALUES (:id, :org, :pid, :sid, :tok, :uid, :reason, :term, :lat, :c)'
         )->execute([
             ':id' => $stopId,
             ':org' => $orgId,
@@ -2123,6 +2326,7 @@ final class SecurityPlatformService
             ':uid' => $principal['user_id'],
             ':reason' => $reason,
             ':term' => $terminatedCount,
+            ':lat' => $totalLatencyMs,
             ':c' => $now,
         ]);
 
@@ -2133,7 +2337,7 @@ final class SecurityPlatformService
             (string) $principal['role'],
             'emergency_stop',
             'allow',
-            sprintf('Emergency stop %s activated (scan=%s, token=%s): %s', $stopId, $scanId ?? 'all', $tokenId, $reason)
+            sprintf('Emergency stop %s activated in %dms (scan=%s, token=%s): %s', $stopId, $totalLatencyMs, $scanId ?? 'all', $tokenId, $reason)
         );
 
         return [
@@ -2144,6 +2348,10 @@ final class SecurityPlatformService
             'emergency_stop_token_id' => $tokenId,
             'reason' => $reason,
             'subprocesses_terminated' => $terminatedCount,
+            'redis_queue_jobs_purged' => $redisCancelMeta['purged_from_queue'],
+            'cancellation_latency_ms' => $totalLatencyMs,
+            'signal_sequence' => $cancelMeta['signal_sequence'],
+            'within_sla_2000ms' => $totalLatencyMs < 2000,
             'created_at' => $now,
         ];
     }
@@ -2157,6 +2365,63 @@ final class SecurityPlatformService
         $stmt = $this->pdo->prepare('SELECT * FROM emergency_stop_events WHERE organization_id = :org ORDER BY created_at DESC');
         $stmt->execute([':org' => $principal['organization_id']]);
         return $this->filterRowsByProjectScope($principal, $stmt->fetchAll());
+    }
+
+    /**
+     * Queue & Horizon Supervisor Telemetry (`S10-03`).
+     *
+     * @param array<string, mixed> $principal
+     * @return array<string, mixed>
+     */
+    public function getQueueAndHorizonStatus(array $principal): array
+    {
+        $orgId = (string) $principal['organization_id'];
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM scan_queue_jobs WHERE organization_id = :org ORDER BY dispatched_at DESC LIMIT 50'
+        );
+        $stmt->execute([':org' => $orgId]);
+        $jobs = $this->filterRowsByProjectScope($principal, $stmt->fetchAll());
+
+        $byStatus = ['queued' => 0, 'running' => 0, 'completed' => 0, 'failed' => 0, 'killed' => 0];
+        foreach ($jobs as $j) {
+            $st = (string) ($j['status'] ?? 'completed');
+            if (isset($byStatus[$st])) {
+                $byStatus[$st]++;
+            }
+        }
+
+        $failedJobs = [];
+        try {
+            $fStmt = $this->pdo->prepare('SELECT * FROM failed_jobs WHERE organization_id = :org ORDER BY failed_at DESC LIMIT 20');
+            $fStmt->execute([':org' => $orgId]);
+            $failedJobs = $this->filterRowsByProjectScope($principal, $fStmt->fetchAll());
+        } catch (\Throwable) {
+            $failedJobs = [];
+        }
+
+        $horizonLive = ['redis_reachable' => false];
+        try {
+            $horizonEngine = new HorizonRedisQueueEngine();
+            $horizonLive = $horizonEngine->getLiveHorizonTelemetry();
+        } catch (\Throwable) {
+            $horizonLive = ['redis_reachable' => false];
+        }
+
+        return [
+            'organization_id' => $orgId,
+            'horizon_supervisor' => 'supervisor-scans',
+            'queues' => [
+                'hegosentinel-scans',
+                'hegosentinel-rechecks',
+                'hegosentinel-notifications',
+            ],
+            'worker_isolation_plane' => 'WorkerSupervisorClient (API never mounts docker.sock)',
+            'counts_by_status' => $byStatus,
+            'failed_jobs_count' => count($failedJobs),
+            'failed_jobs' => $failedJobs,
+            'live_horizon_redis' => $horizonLive,
+            'recent_jobs' => $jobs,
+        ];
     }
 
     /**
@@ -2193,14 +2458,23 @@ final class SecurityPlatformService
      * Verifies the global SHA-256 hash chain across all audit_logs rows.
      * @return array{valid: bool, entries_checked: int, broken_at_sequence?: int}
      */
-    public function verifyAuditChainIntegrity(): array
+    public function verifyAuditChainIntegrity(?string $orgId = null): array
     {
-        $rows = $this->pdo->query('SELECT * FROM audit_logs ORDER BY sequence ASC')->fetchAll();
-        $expectedPrev = str_repeat('0', 64);
+        if ($orgId !== null && $orgId !== '') {
+            $stmt = $this->pdo->prepare('SELECT * FROM audit_logs WHERE organization_id = :org ORDER BY sequence ASC');
+            $stmt->execute([':org' => $orgId]);
+            $rows = $stmt->fetchAll();
+        } else {
+            $rows = $this->pdo->query('SELECT * FROM audit_logs ORDER BY sequence ASC')->fetchAll();
+        }
+        /** @var array<string, string> $expectedPrevByOrg */
+        $expectedPrevByOrg = [];
         $checked = 0;
 
         foreach ($rows as $row) {
             $checked++;
+            $rowOrg = (string) $row['organization_id'];
+            $expectedPrev = $expectedPrevByOrg[$rowOrg] ?? str_repeat('0', 64);
             if ($row['prev_hash'] !== $expectedPrev) {
                 return ['valid' => false, 'entries_checked' => $checked, 'broken_at_sequence' => (int) $row['sequence']];
             }
@@ -2220,7 +2494,7 @@ final class SecurityPlatformService
             if (!hash_equals($computed, (string) $row['entry_hash'])) {
                 return ['valid' => false, 'entries_checked' => $checked, 'broken_at_sequence' => (int) $row['sequence']];
             }
-            $expectedPrev = $computed;
+            $expectedPrevByOrg[$rowOrg] = $computed;
         }
 
         return ['valid' => true, 'entries_checked' => $checked];
@@ -2299,7 +2573,8 @@ final class SecurityPlatformService
         string $outcome,
         string $detail
     ): void {
-        $prevStmt = $this->pdo->query('SELECT entry_hash FROM audit_logs ORDER BY sequence DESC LIMIT 1');
+        $prevStmt = $this->pdo->prepare('SELECT entry_hash FROM audit_logs WHERE organization_id = :org ORDER BY sequence DESC LIMIT 1');
+        $prevStmt->execute([':org' => $orgId]);
         $prevHash = (string) ($prevStmt->fetchColumn() ?: str_repeat('0', 64));
 
         $eventId = 'AUD-' . strtoupper(bin2hex(random_bytes(6)));

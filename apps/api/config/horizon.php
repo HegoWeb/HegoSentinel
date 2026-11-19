@@ -10,6 +10,8 @@ return [
     'middleware' => ['web', 'auth:sanctum'],
     'waits' => [
         'redis:hegosentinel-scans' => 60,
+        'redis:hegosentinel-rechecks' => 60,
+        'redis:hegosentinel-notifications' => 30,
     ],
     'trim' => [
         'recent' => 60,
@@ -25,7 +27,11 @@ return [
     'defaults' => [
         'supervisor-scans' => [
             'connection' => 'redis',
-            'queue' => ['hegosentinel-scans', 'hegosentinel-notifications'],
+            'queue' => [
+                'hegosentinel-scans',
+                'hegosentinel-rechecks',
+                'hegosentinel-notifications',
+            ],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 4,
@@ -37,5 +43,18 @@ return [
             'nice' => 0,
         ],
     ],
+    'environments' => [
+        'production' => [
+            'supervisor-scans' => [
+                'maxProcesses' => 4,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
+        ],
+        'local' => [
+            'supervisor-scans' => [
+                'maxProcesses' => 2,
+            ],
+        ],
+    ],
 ];
-

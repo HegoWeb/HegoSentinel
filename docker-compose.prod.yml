@@ -1,0 +1,68 @@
+name: hegosentinel-production
+
+services:
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+    ports: []
+
+  redis:
+    extends:
+      file: docker-compose.yml
+      service: redis
+    ports: []
+
+  egress-broker:
+    extends:
+      file: docker-compose.yml
+      service: egress-broker
+
+  worker-supervisor:
+    extends:
+      file: docker-compose.yml
+      service: worker-supervisor
+
+  worker:
+    extends:
+      file: docker-compose.yml
+      service: worker
+
+  api:
+    extends:
+      file: docker-compose.yml
+      service: api
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      HEGOSENTINEL_DEMO_MODE: "0"
+
+  horizon:
+    extends:
+      file: docker-compose.yml
+      service: horizon
+
+  web:
+    extends:
+      file: docker-compose.yml
+      service: web
+    environment:
+      NODE_ENV: production
+      HEGOSENTINEL_DEMO_MODE: "0"
+
+networks:
+  hego_platform:
+    driver: bridge
+  hego_edge:
+    driver: bridge
+  hego_data:
+    driver: bridge
+    internal: true
+  hego_internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  hego_pgdata:
+  hego_redisdata:
+
