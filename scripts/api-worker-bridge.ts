@@ -41,6 +41,7 @@ interface WorkerBridgeInput {
   grant?: ScopeAuthorizationGrant;
   repository_path?: string | null;
   fixture_variant?: 'baseline' | 'patched';
+  simulated_duration_ms?: number;
   baseline_report?: ScanReport;
   current_report?: ScanReport;
   suppressions?: FalsePositiveSuppression[];
@@ -91,6 +92,11 @@ async function main(): Promise<void> {
 
   if (!input.grant) {
     throw new Error('grant is required for scan action');
+  }
+
+  if (typeof input.simulated_duration_ms === 'number' && input.simulated_duration_ms > 0) {
+    const waitMs = Math.min(input.simulated_duration_ms, 30_000);
+    await new Promise((resolveTimer) => setTimeout(resolveTimer, waitMs));
   }
 
   const isPatchedVariant =

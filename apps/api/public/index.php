@@ -2,13 +2,33 @@
 
 declare(strict_types=1);
 
+define('LARAVEL_START', microtime(true));
+
 require_once __DIR__ . '/../bootstrap/autoload.php';
 
 use App\Http\Controllers\Api\V1\PlatformApiController;
 use App\Services\SecurityPlatformService;
 use App\Support\DatabaseManager;
+use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 
-// Hardened HTTP Security & CORS Headers
+/**
+ * HegoSentinel Laravel 11 HTTP Kernel Front Controller (`public/index.php`)
+ *
+ * Boots the real `Illuminate\Foundation\Application` (`bootstrap/app.php`) and handles
+ * the incoming `Illuminate\Http\Request` through the full Laravel 11 middleware & routing pipeline.
+ */
+if (class_exists(Application::class) && is_file(__DIR__ . '/../bootstrap/app.php')) {
+    /** @var Application $app */
+    $app = require_once __DIR__ . '/../bootstrap/app.php';
+    $request = Request::capture();
+    $response = $app->handle($request);
+    $response->send();
+    $app->terminate($request, $response);
+    exit(0);
+}
+
+// Fallback only if vendor/ is not installed
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
 $allowedOrigins = [
     'http://localhost:3000',
@@ -54,8 +74,7 @@ foreach ($_SERVER as $k => $v) {
 if (!isset($headers['authorization']) && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
     $headers['authorization'] = (string) $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
-// Trusted network peer only: discard any client-supplied value of this internal header name.
-unset($headers['x-hegosentinel-remote-addr']);
+unset($headers['x-hegosentinel-remote-addr'], $headers['x-demo-principal']);
 $headers['x-hegosentinel-remote-addr'] = (string) ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
 
 $pdo = DatabaseManager::connect();
@@ -80,4 +99,3 @@ if (is_string($response['body'])) {
 } else {
     echo json_encode($response['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 }
-

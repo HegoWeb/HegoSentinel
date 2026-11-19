@@ -5,20 +5,57 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Services\SecurityPlatformService;
+use App\Support\DatabaseManager;
+use App\Support\TenantRlsContext;
+use Illuminate\Http\Request;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * HegoSentinel Laravel API V1 Controller
+ * HegoSentinel Laravel 11 API V1 Controller
  *
  * Exposes all 14 multi-tenant security platform modules over REST JSON endpoints
- * with strict RBAC, ScopeAuthorizationGrant validation, and tamper-evident audit logging.
+ * with strict RBAC, PostgreSQL RLS tenant context (`TenantRlsContext`),
+ * ScopeAuthorizationGrant validation, and tamper-evident audit logging.
  */
 final class PlatformApiController
 {
     public function __construct(
         private readonly SecurityPlatformService $service
     ) {
+    }
+
+    /**
+     * Entrypoint invoked by the Laravel 11 Router (`Illuminate\Support\Facades\Route`).
+     */
+    public function handleLaravelRequest(Request $request): Response
+    {
+        $headers = [];
+        foreach ($request->headers->all() as $k => $values) {
+            $headers[strtolower((string) $k)] = (string) ($values[0] ?? '');
+        }
+        // Defense-in-depth: never trust client-supplied X-Hegosentinel-Remote-Addr or X-Demo-Principal
+        unset($headers['x-demo-principal']);
+        $headers['x-hegosentinel-remote-addr'] = (string) ($request->server('REMOTE_ADDR') ?: $request->ip() ?: '127.0.0.1');
+
+        $rawContent = (string) $request->getContent();
+        $decodedJson = $rawContent !== '' ? json_decode($rawContent, true) : null;
+        $body = is_array($decodedJson) ? $decodedJson : $request->post();
+
+        $res = $this->handle(
+            $request->getMethod(),
+            $request->getRequestUri(),
+            $headers,
+            $request->query(),
+            is_array($body) ? $body : []
+        );
+
+        $content = is_string($res['body'])
+            ? $res['body']
+            : (string) json_encode($res['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        return new Response($content, $res['status'], $res['headers']);
     }
 
     /**
@@ -42,8 +79,12 @@ final class PlatformApiController
                 return $this->json(200, [
                     'ok' => true,
                     'service' => 'hegosentinel-laravel-api',
-                    'version' => '0.1.0-alpha.4',
+                    'framework' => class_exists(\Illuminate\Foundation\Application::class)
+                        ? 'Laravel ' . \Illuminate\Foundation\Application::VERSION
+                        : 'PHP Native Fallback',
+                    'version' => '0.2.0-sprint10',
                     'php_version' => PHP_VERSION,
+                    'db_driver' => DatabaseManager::driver(),
                     'restricted_remote_mode' => 'BLOCKED',
                     'pinned_scanners' => [
                         'semgrep' => '1.183.0',
@@ -58,7 +99,7 @@ final class PlatformApiController
                 $res = $this->service->login(
                     (string) ($body['email'] ?? ''),
                     (string) ($body['password'] ?? ''),
-                    // Trusted source address injected by public/index.php from REMOTE_ADDR (never from client headers).
+                    // Trusted source address injected by public/index.php or middleware from REMOTE_ADDR.
                     (string) ($headers['x-hegosentinel-remote-addr'] ?? '127.0.0.1'),
                     (string) ($headers['user-agent'] ?? 'HegoSentinel-Web')
                 );
@@ -92,175 +133,14 @@ final class PlatformApiController
             $bearer = $headers['authorization'] ?? $headers['Authorization'] ?? null;
             $principal = $this->service->authenticateRequest(is_string($bearer) ? $bearer : null);
 
-            if ($method === 'GET' && $cleanPath === '/api/v1/auth/me') {
-                return $this->json(200, ['ok' => true, 'data' => $principal]);
-            }
+            // Bind server-verified tenant context for Eloquent Global Scope & PostgreSQL RLS (`SET LOCAL app.current_organization_id`)
+            TenantRlsContext::set((string) $principal['organization_id'], $principal, $this->service->pdo());
 
-            // Dashboard Telemetry
-            if ($method === 'GET' && $cleanPath === '/api/v1/dashboard') {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->getDashboardSummary($principal),
-                ]);
+            try {
+                return $this->dispatchAuthenticated($method, $cleanPath, $principal, $query, $body);
+            } finally {
+                TenantRlsContext::clear($this->service->pdo());
             }
-
-            // Module 2 & 3: Organization & Team RBAC
-            if ($method === 'GET' && $cleanPath === '/api/v1/organization') {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->getOrganizationOverview($principal),
-                ]);
-            }
-
-            if ($method === 'POST' && $cleanPath === '/api/v1/organization/members') {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->inviteOrUpdateMember($principal, $body),
-                ]);
-            }
-
-            // Module 4: Projects & Target Assets
-            if ($method === 'GET' && $cleanPath === '/api/v1/projects') {
-                $includeDemo = !isset($query['include_demo']) || $query['include_demo'] !== 'false';
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listProjects($principal, $includeDemo),
-                ]);
-            }
-
-            if ($method === 'POST' && $cleanPath === '/api/v1/projects') {
-                $proj = $this->service->createProject($principal, $body);
-                return $this->json(201, ['ok' => true, 'data' => $proj]);
-            }
-
-            // Module 5: Scope Authorization Grants (`/api/v1/projects/{id}/grants`)
-            if ($method === 'POST' && preg_match('#^/api/v1/projects/([a-zA-Z0-9\-_]+)/grants$#', $cleanPath, $m)) {
-                $grant = $this->service->createScopeAuthorizationGrant($principal, $m[1], $body);
-                return $this->json(201, ['ok' => true, 'data' => $grant]);
-            }
-
-            // Module 6 & 7: Scans & Coverage Matrix
-            if ($method === 'GET' && $cleanPath === '/api/v1/scans') {
-                $projectId = isset($query['project_id']) ? (string) $query['project_id'] : null;
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listScans($principal, $projectId),
-                ]);
-            }
-
-            if ($method === 'POST' && $cleanPath === '/api/v1/scans') {
-                $scan = $this->service->createAndExecuteScan($principal, $body);
-                $statusCode = ($scan['status'] ?? '') === 'denied' ? 403 : 201;
-                return $this->json($statusCode, [
-                    'ok' => $statusCode === 201,
-                    'data' => $scan,
-                ]);
-            }
-
-            if ($method === 'GET' && preg_match('#^/api/v1/scans/([a-zA-Z0-9\-_]+)$#', $cleanPath, $m)) {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->getScanById($principal, $m[1]),
-                ]);
-            }
-
-            // Module 11: Safe Report Export (`/api/v1/scans/{id}/export`)
-            if ($method === 'GET' && preg_match('#^/api/v1/scans/([a-zA-Z0-9\-_]+)/export$#', $cleanPath, $m)) {
-                $format = (string) ($query['format'] ?? 'json');
-                $exported = $this->service->exportScanReport($principal, $m[1], $format);
-                if (!empty($query['raw']) && $query['raw'] === '1') {
-                    return [
-                        'status' => 200,
-                        'headers' => [
-                            'Content-Type' => $exported['content_type'],
-                            'Content-Disposition' => 'attachment; filename="' . $exported['filename'] . '"',
-                        ],
-                        'body' => $exported['content'],
-                    ];
-                }
-                return $this->json(200, ['ok' => true, 'data' => $exported]);
-            }
-
-            // Module 8: Security Findings & Scoped Suppressions
-            if ($method === 'GET' && $cleanPath === '/api/v1/findings') {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listFindings($principal, $query),
-                ]);
-            }
-
-            if ($method === 'POST' && preg_match('#^/api/v1/findings/([a-zA-Z0-9\-_]+)/suppress$#', $cleanPath, $m)) {
-                $sup = $this->service->suppressFindingFalsePositive($principal, $m[1], $body);
-                return $this->json(201, ['ok' => true, 'data' => $sup]);
-            }
-
-            // Module 9: Remediation Tasks
-            if ($method === 'GET' && $cleanPath === '/api/v1/remediation-tasks') {
-                $projectId = isset($query['project_id']) ? (string) $query['project_id'] : null;
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listRemediationTasks($principal, $projectId),
-                ]);
-            }
-
-            if (($method === 'PATCH' || $method === 'POST') && preg_match('#^/api/v1/remediation-tasks/([a-zA-Z0-9\-_]+)$#', $cleanPath, $m)) {
-                $task = $this->service->updateRemediationTask($principal, $m[1], $body);
-                return $this->json(200, ['ok' => true, 'data' => $task]);
-            }
-
-            // Module 10: Re-Test & Comparison
-            if ($method === 'GET' && $cleanPath === '/api/v1/rechecks') {
-                $projectId = isset($query['project_id']) ? (string) $query['project_id'] : null;
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listRecheckComparisons($principal, $projectId),
-                ]);
-            }
-
-            if ($method === 'POST' && $cleanPath === '/api/v1/rechecks') {
-                $comp = $this->service->runRecheckComparison($principal, $body);
-                return $this->json(201, ['ok' => true, 'data' => $comp]);
-            }
-
-            // Module 12: Approved Developer Notifications
-            if ($method === 'GET' && $cleanPath === '/api/v1/notifications') {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listNotifications($principal),
-                ]);
-            }
-
-            if ($method === 'POST' && $cleanPath === '/api/v1/notifications') {
-                $notif = $this->service->sendApprovedNotification($principal, $body);
-                return $this->json(201, ['ok' => true, 'data' => $notif]);
-            }
-
-            // Module 14: Emergency Stop
-            if ($method === 'GET' && $cleanPath === '/api/v1/emergency-stop') {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listEmergencyStopEvents($principal),
-                ]);
-            }
-
-            if ($method === 'POST' && $cleanPath === '/api/v1/emergency-stop') {
-                $stop = $this->service->triggerEmergencyStop($principal, $body);
-                return $this->json(201, ['ok' => true, 'data' => $stop]);
-            }
-
-            // Module 13: Tamper-Evident Audit Logs
-            if ($method === 'GET' && $cleanPath === '/api/v1/audit-logs') {
-                return $this->json(200, [
-                    'ok' => true,
-                    'data' => $this->service->listAndVerifyAuditLogs($principal),
-                ]);
-            }
-
-            return $this->json(404, [
-                'ok' => false,
-                'error' => 'route_not_found',
-                'message' => sprintf('Endpoint %s %s not found', $method, $cleanPath),
-            ]);
         } catch (RuntimeException $e) {
             $code = (int) $e->getCode();
             if ($code < 400 || $code > 599) {
@@ -288,6 +168,193 @@ final class PlatformApiController
     }
 
     /**
+     * @param array<string, mixed> $principal
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $body
+     * @return array{status: int, headers: array<string, string>, body: mixed}
+     */
+    private function dispatchAuthenticated(string $method, string $cleanPath, array $principal, array $query, array $body): array
+    {
+        if ($method === 'GET' && $cleanPath === '/api/v1/auth/me') {
+            return $this->json(200, ['ok' => true, 'data' => $principal]);
+        }
+
+        // Dashboard Telemetry
+        if ($method === 'GET' && $cleanPath === '/api/v1/dashboard') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->getDashboardSummary($principal),
+            ]);
+        }
+
+        // Module 2 & 3: Organization & Team RBAC
+        if ($method === 'GET' && $cleanPath === '/api/v1/organization') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->getOrganizationOverview($principal),
+            ]);
+        }
+
+        if ($method === 'POST' && $cleanPath === '/api/v1/organization/members') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->inviteOrUpdateMember($principal, $body),
+            ]);
+        }
+
+        // Module 4: Projects & Target Assets
+        if ($method === 'GET' && $cleanPath === '/api/v1/projects') {
+            $includeDemo = !isset($query['include_demo']) || $query['include_demo'] !== 'false';
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listProjects($principal, $includeDemo),
+            ]);
+        }
+
+        if ($method === 'POST' && $cleanPath === '/api/v1/projects') {
+            $proj = $this->service->createProject($principal, $body);
+            return $this->json(201, ['ok' => true, 'data' => $proj]);
+        }
+
+        // Module 5: Scope Authorization Grants (`/api/v1/projects/{id}/grants`)
+        if ($method === 'POST' && preg_match('#^/api/v1/projects/([a-zA-Z0-9\-_]+)/grants$#', $cleanPath, $m)) {
+            $grant = $this->service->createScopeAuthorizationGrant($principal, $m[1], $body);
+            return $this->json(201, ['ok' => true, 'data' => $grant]);
+        }
+
+        // Module 6 & 7: Scans & Coverage Matrix
+        if ($method === 'GET' && $cleanPath === '/api/v1/scans') {
+            $projectId = isset($query['project_id']) ? (string) $query['project_id'] : null;
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listScans($principal, $projectId),
+            ]);
+        }
+
+        if ($method === 'POST' && $cleanPath === '/api/v1/scans') {
+            $scan = $this->service->createAndExecuteScan($principal, $body);
+            $statusCode = ($scan['status'] ?? '') === 'denied' ? 403 : 201;
+            return $this->json($statusCode, [
+                'ok' => $statusCode === 201,
+                'data' => $scan,
+            ]);
+        }
+
+        if ($method === 'GET' && preg_match('#^/api/v1/scans/([a-zA-Z0-9\-_]+)$#', $cleanPath, $m)) {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->getScanById($principal, $m[1]),
+            ]);
+        }
+
+        // Module 11: Safe Report Export (`/api/v1/scans/{id}/export`)
+        if ($method === 'GET' && preg_match('#^/api/v1/scans/([a-zA-Z0-9\-_]+)/export$#', $cleanPath, $m)) {
+            $format = (string) ($query['format'] ?? 'json');
+            $exported = $this->service->exportScanReport($principal, $m[1], $format);
+            if (!empty($query['raw']) && $query['raw'] === '1') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => $exported['content_type'],
+                        'Content-Disposition' => 'attachment; filename="' . $exported['filename'] . '"',
+                    ],
+                    'body' => $exported['content'],
+                ];
+            }
+            return $this->json(200, ['ok' => true, 'data' => $exported]);
+        }
+
+        // Module 8: Security Findings & Scoped Suppressions
+        if ($method === 'GET' && $cleanPath === '/api/v1/findings') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listFindings($principal, $query),
+            ]);
+        }
+
+        if ($method === 'POST' && preg_match('#^/api/v1/findings/([a-zA-Z0-9\-_]+)/suppress$#', $cleanPath, $m)) {
+            $sup = $this->service->suppressFindingFalsePositive($principal, $m[1], $body);
+            return $this->json(201, ['ok' => true, 'data' => $sup]);
+        }
+
+        // Module 9: Remediation Tasks
+        if ($method === 'GET' && $cleanPath === '/api/v1/remediation-tasks') {
+            $projectId = isset($query['project_id']) ? (string) $query['project_id'] : null;
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listRemediationTasks($principal, $projectId),
+            ]);
+        }
+
+        if (($method === 'PATCH' || $method === 'POST') && preg_match('#^/api/v1/remediation-tasks/([a-zA-Z0-9\-_]+)$#', $cleanPath, $m)) {
+            $task = $this->service->updateRemediationTask($principal, $m[1], $body);
+            return $this->json(200, ['ok' => true, 'data' => $task]);
+        }
+
+        // Module 10: Re-Test & Comparison
+        if ($method === 'GET' && $cleanPath === '/api/v1/rechecks') {
+            $projectId = isset($query['project_id']) ? (string) $query['project_id'] : null;
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listRecheckComparisons($principal, $projectId),
+            ]);
+        }
+
+        if ($method === 'POST' && $cleanPath === '/api/v1/rechecks') {
+            $comp = $this->service->runRecheckComparison($principal, $body);
+            return $this->json(201, ['ok' => true, 'data' => $comp]);
+        }
+
+        // Module 12: Approved Developer Notifications
+        if ($method === 'GET' && $cleanPath === '/api/v1/notifications') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listNotifications($principal),
+            ]);
+        }
+
+        if ($method === 'POST' && $cleanPath === '/api/v1/notifications') {
+            $notif = $this->service->sendApprovedNotification($principal, $body);
+            return $this->json(201, ['ok' => true, 'data' => $notif]);
+        }
+
+        // Module 14: Emergency Stop
+        if ($method === 'GET' && $cleanPath === '/api/v1/emergency-stop') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listEmergencyStopEvents($principal),
+            ]);
+        }
+
+        if ($method === 'POST' && $cleanPath === '/api/v1/emergency-stop') {
+            $stop = $this->service->triggerEmergencyStop($principal, $body);
+            return $this->json(201, ['ok' => true, 'data' => $stop]);
+        }
+
+        // Module 13: Tamper-Evident Audit Logs
+        if ($method === 'GET' && $cleanPath === '/api/v1/audit-logs') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->listAndVerifyAuditLogs($principal),
+            ]);
+        }
+
+        // Queue & Horizon Status Plane (S10-03)
+        if ($method === 'GET' && $cleanPath === '/api/v1/queues/status') {
+            return $this->json(200, [
+                'ok' => true,
+                'data' => $this->service->getQueueAndHorizonStatus($principal),
+            ]);
+        }
+
+        return $this->json(404, [
+            'ok' => false,
+            'error' => 'route_not_found',
+            'message' => sprintf('Endpoint %s %s not found', $method, $cleanPath),
+        ]);
+    }
+
+    /**
      * @param array<string, mixed> $payload
      * @return array{status: int, headers: array<string, string>, body: array<string, mixed>}
      */
@@ -302,4 +369,3 @@ final class PlatformApiController
         ];
     }
 }
-

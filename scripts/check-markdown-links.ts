@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from 'node:path';
  * Usage: npm run docs:links   (exit code 1 on any broken link)
  */
 const ROOT = resolve(process.cwd());
-const SKIP_DIRS = new Set(['node_modules', '.git', '.tools', 'reports', 'HegoSentinel', '.playwright-mcp']);
+const SKIP_DIRS = new Set(['node_modules', 'vendor', '.next', '.git', '.tools', 'reports', 'HegoSentinel', '.playwright-mcp']);
 
 function collect(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

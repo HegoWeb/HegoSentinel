@@ -7,9 +7,9 @@ namespace Database\Migrations;
 use PDO;
 
 /**
- * HegoSentinel Stage 2 / Sprint 8 Full Platform Schema Migration
+ * HegoSentinel Sprint 10 Full Platform Schema Migration
  * Compatible with both PostgreSQL 16 (production / Docker Compose) and SQLite 3 (local dev & CI tests).
- * Enforces multi-tenant organization_id & project_id foreign keys across all 14 modules.
+ * Enforces multi-tenant organization_id & project_id foreign keys and indexes across all 14 modules.
  */
 final class CreateHegosentinelPlatformTables
 {
@@ -161,7 +161,12 @@ final class CreateHegosentinelPlatformTables
                 worker_isolation_mode VARCHAR(64) NOT NULL,
                 status VARCHAR(32) NOT NULL,
                 attempts INTEGER NOT NULL DEFAULT 0,
+                max_tries INTEGER NOT NULL DEFAULT 1,
+                timeout_seconds INTEGER NOT NULL DEFAULT 90,
+                idempotency_key VARCHAR(128) DEFAULT NULL,
                 worker_pid INTEGER DEFAULT NULL,
+                supervisor_container_id VARCHAR(128) DEFAULT NULL,
+                heartbeat_at VARCHAR(40) DEFAULT NULL,
                 dispatched_at VARCHAR(40) NOT NULL,
                 finished_at VARCHAR(40) DEFAULT NULL,
                 error_message TEXT DEFAULT NULL
@@ -286,6 +291,7 @@ final class CreateHegosentinelPlatformTables
                 triggered_by_user_id VARCHAR(64) NOT NULL,
                 reason TEXT NOT NULL,
                 subprocesses_terminated INTEGER NOT NULL DEFAULT 0,
+                cancellation_latency_ms INTEGER NOT NULL DEFAULT 0,
                 created_at VARCHAR(40) NOT NULL
             )',
 
@@ -295,7 +301,19 @@ final class CreateHegosentinelPlatformTables
                 email_key VARCHAR(255) NOT NULL,
                 ip_address VARCHAR(64) NOT NULL,
                 attempted_at INTEGER NOT NULL
-            )'
+            )',
+
+            // Indexes for multi-tenant query performance
+            'CREATE INDEX IF NOT EXISTS idx_org_members_org_user ON organization_members (organization_id, user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_projects_org ON projects (organization_id)',
+            'CREATE INDEX IF NOT EXISTS idx_target_assets_org_proj ON target_assets (organization_id, project_id)',
+            'CREATE INDEX IF NOT EXISTS idx_scope_grants_org_proj ON scope_authorization_grants (organization_id, project_id)',
+            'CREATE INDEX IF NOT EXISTS idx_scan_runs_org_proj ON scan_runs (organization_id, project_id)',
+            'CREATE INDEX IF NOT EXISTS idx_scan_queue_jobs_org_scan ON scan_queue_jobs (organization_id, scan_run_id)',
+            'CREATE INDEX IF NOT EXISTS idx_findings_org_proj ON findings (organization_id, project_id)',
+            'CREATE INDEX IF NOT EXISTS idx_remediation_tasks_org_proj ON remediation_tasks (organization_id, project_id)',
+            'CREATE INDEX IF NOT EXISTS idx_audit_logs_org_seq ON audit_logs (organization_id, sequence)',
+            'CREATE INDEX IF NOT EXISTS idx_estop_org_proj ON emergency_stop_events (organization_id, project_id)',
         ];
     }
 
@@ -307,6 +325,22 @@ final class CreateHegosentinelPlatformTables
             }
             $pdo->exec($sql);
         }
+
+        // Backfill new Sprint 10 columns on existing local SQLite databases if upgraded in-place
+        $optionalColumns = [
+            ['scan_queue_jobs', 'max_tries', 'INTEGER NOT NULL DEFAULT 1'],
+            ['scan_queue_jobs', 'timeout_seconds', 'INTEGER NOT NULL DEFAULT 90'],
+            ['scan_queue_jobs', 'idempotency_key', 'VARCHAR(128) DEFAULT NULL'],
+            ['scan_queue_jobs', 'supervisor_container_id', 'VARCHAR(128) DEFAULT NULL'],
+            ['scan_queue_jobs', 'heartbeat_at', 'VARCHAR(40) DEFAULT NULL'],
+            ['emergency_stop_events', 'cancellation_latency_ms', 'INTEGER NOT NULL DEFAULT 0'],
+        ];
+        foreach ($optionalColumns as [$table, $col, $def]) {
+            try {
+                $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$col} {$def}");
+            } catch (\Throwable) {
+                // Column already exists
+            }
+        }
     }
 }
-
