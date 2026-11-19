@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
 
@@ -127,7 +127,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22.16.0
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22.16.0'
 
@@ -151,7 +151,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22.16.0
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22.16.0'
 
@@ -183,7 +183,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22.16.0
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22.16.0'
 
@@ -209,7 +209,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22.16.0
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22.16.0'
 
@@ -232,7 +232,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js 22.16.0
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22.16.0'
 
@@ -285,7 +285,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js 22.16.0
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22.16.0'
 
